@@ -43,7 +43,13 @@ The primary goal of VisionX is to provide a reliable, automated pipeline to:
     ```
     Follow the prompts to configure your source databases, target database, and InfluxDB settings.
 
-4.  **Launch the system**:
+    > [!IMPORTANT]
+    > **Database Permissions**: The credentials provided for the target database must have temporary permissions to **CREATE** tables during the initialization step. Once the tables are created, only **INSERT** and **UPDATE** permissions are required for normal operation.
+
+4.  **Create Tables**:
+    From the management menu in `deploy.sh`, select **5) Create Tables (Target DB)** to initialize the required schema.
+
+5.  **Launch the system**:
     From the main menu in `deploy.sh`, select **2) Launch**.
 
 ## Deployment Commands

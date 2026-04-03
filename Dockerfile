@@ -12,6 +12,7 @@ WORKDIR /app
 COPY app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ ./
+COPY init.sql .
 # Copy built React frontend to static folder
 RUN mkdir -p /app/static
 COPY --from=frontend-builder /ui/dist /app/static

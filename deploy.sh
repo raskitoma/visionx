@@ -135,7 +135,8 @@ cmd_configure() {
         echo "3) Remove a Source"
         echo "4) Change Target DB"
         echo "5) Change InfluxDB Settings"
-        echo "6) Back to Main Menu"
+        echo "6) Create Tables in Target DB"
+        echo "7) Back to Main Menu"
         read -p "Selection: " sub_choice
         
         case $sub_choice in
@@ -156,7 +157,8 @@ cmd_configure() {
                 ;;
             4) configure_target; save_env ;;
             5) configure_influx; save_env ;;
-            6) return ;;
+            6) cmd_init_db ;;
+            7) return ;;
             *) log_error "Invalid selection" ;;
         esac
     fi
@@ -245,6 +247,31 @@ cmd_remove() {
     docker-compose down
 }
 
+cmd_init_db() {
+    if [ ! -f "$ENV_FILE" ]; then
+        log_error ".env file not found. Please run 'configure' first."
+        return
+    fi
+    load_env
+    
+    if [ -z "$TARGET_DB" ]; then
+        log_error "TARGET_DB not configured."
+        return
+    fi
+
+    log_info "Running database initialization via sync-app container..."
+    
+    # We use docker-compose run to use the existing environment and dependencies
+    # We mount the local directory to ensure the latest init.sql and init_db.py are used
+    docker-compose run --rm -v "$(pwd):/app" sync-app python app/init_db.py
+    
+    if [ $? -eq 0 ]; then
+        log_success "Database initialization successful."
+    else
+        log_error "Failed to initialize database tables."
+    fi
+}
+
 cmd_update() {
     log_info "Checking for updates..."
     # If it's a git repo, we could do git pull
@@ -262,8 +289,9 @@ main_menu() {
         echo "2) Launch (Start system)"
         echo "3) Stop (Stop services)"
         echo "4) Remove (Clean up containers)"
-        echo "5) Update (Pull latest and restart)"
-        echo "6) Exit"
+        echo "5) Create Tables (Target DB)"
+        echo "6) Update (Pull latest and restart)"
+        echo "7) Exit"
         read -p "Selection: " choice
         
         case $choice in
@@ -271,8 +299,9 @@ main_menu() {
             2) cmd_launch ;;
             3) cmd_stop ;;
             4) cmd_remove ;;
-            5) cmd_update ;;
-            6) exit 0 ;;
+            5) cmd_init_db ;;
+            6) cmd_update ;;
+            7) exit 0 ;;
             *) log_error "Invalid selection" ;;
         esac
     done
@@ -284,6 +313,7 @@ if [ "$1" == "configure" ]; then cmd_configure;
 elif [ "$1" == "launch" ]; then cmd_launch;
 elif [ "$1" == "stop" ]; then cmd_stop;
 elif [ "$1" == "remove" ]; then cmd_remove;
+elif [ "$1" == "init-db" ]; then cmd_init_db;
 elif [ "$1" == "update" ]; then cmd_update;
 else
     main_menu
