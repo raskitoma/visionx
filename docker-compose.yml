@@ -1,0 +1,21 @@
+services:
+  sync-app:
+    build: .
+    environment:
+      # Format: user:pass@host:port|LineName,user:pass@host:port|LineName
+      SOURCE_DBS: "${SOURCE_DBS}"
+      TARGET_DB: "${TARGET_DB}"
+      TZ: "${TZ:-America/New_York}"
+      RECORDS_LIMIT: "${RECORDS_LIMIT:-100}"
+      INFLUX_HOST: "${INFLUX_HOST}"
+      INFLUX_TOKEN: "${INFLUX_TOKEN}"
+      INFLUX_ORG: "${INFLUX_ORG}"
+      INFLUX_BUCKET: "${INFLUX_BUCKET}"
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./app/main.py:/app/main.py
+      - ./app/sync_engine.py:/app/sync_engine.py
+      - ./app/config.py:/app/config.py
+      - ./logs:/app/logs
+    restart: always

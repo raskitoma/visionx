@@ -1,0 +1,3 @@
+/* Reset only — full dashboard styling lives in dashboard.css */
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; }
