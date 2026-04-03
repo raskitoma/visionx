@@ -28,7 +28,10 @@ venv/
 
 # Docker
 .dockerignore
+
+# Logs
 logs/
+**/logs/
 *.log
 
 # IDEs

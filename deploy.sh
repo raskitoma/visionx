@@ -282,6 +282,11 @@ cmd_update() {
     docker-compose up -d --build
 }
 
+cmd_logs() {
+    log_info "Displaying logs (Ctrl+C to stop)..."
+    docker-compose logs -f
+}
+
 main_menu() {
     while true; do
         echo -e "\n${GREEN}=== VisionX Management Tool ===${NC}"
@@ -290,8 +295,9 @@ main_menu() {
         echo "3) Stop (Stop services)"
         echo "4) Remove (Clean up containers)"
         echo "5) Create Tables (Target DB)"
-        echo "6) Update (Pull latest and restart)"
-        echo "7) Exit"
+        echo "6) View Logs (Follow)"
+        echo "7) Update (Pull latest and restart)"
+        echo "8) Exit"
         read -p "Selection: " choice
         
         case $choice in
@@ -300,8 +306,9 @@ main_menu() {
             3) cmd_stop ;;
             4) cmd_remove ;;
             5) cmd_init_db ;;
-            6) cmd_update ;;
-            7) exit 0 ;;
+            6) cmd_logs ;;
+            7) cmd_update ;;
+            8) exit 0 ;;
             *) log_error "Invalid selection" ;;
         esac
     done
@@ -314,6 +321,7 @@ elif [ "$1" == "launch" ]; then cmd_launch;
 elif [ "$1" == "stop" ]; then cmd_stop;
 elif [ "$1" == "remove" ]; then cmd_remove;
 elif [ "$1" == "init-db" ]; then cmd_init_db;
+elif [ "$1" == "logs" ]; then cmd_logs;
 elif [ "$1" == "update" ]; then cmd_update;
 else
     main_menu
