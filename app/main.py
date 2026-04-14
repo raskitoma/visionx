@@ -79,12 +79,18 @@ def get_runs():
         ny_tz = pytz.timezone('America/New_York')
         for row in rows:
             line = row['SourceLine']
+            def safe_localize(dt):
+                if not dt: return None
+                if dt.tzinfo is None:
+                    return ny_tz.localize(dt).isoformat()
+                return dt.isoformat()
+
             result[line] = {
                 'RunId':        row['RunId'],
-                'StartTime':    ny_tz.localize(row['StartTime']).isoformat() if row['StartTime'] else None,
-                'EndTime':      ny_tz.localize(row['EndTime']).isoformat()   if row['EndTime']   else None,
-                'FirstTime':    ny_tz.localize(row['FirstTime']).isoformat() if row['FirstTime'] else None,
-                'LastTime':     ny_tz.localize(row['LastTime']).isoformat()  if row['LastTime']  else None,
+                'StartTime':    safe_localize(row['StartTime']),
+                'EndTime':      safe_localize(row['EndTime']),
+                'FirstTime':    safe_localize(row['FirstTime']),
+                'LastTime':     safe_localize(row['LastTime']),
                 'ProductId':    row['ProductId'],
                 'nDetected':    row['nDetected'],
                 'nPassed':      row['nPassed'],

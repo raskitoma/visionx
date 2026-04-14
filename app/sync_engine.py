@@ -77,7 +77,7 @@ def write_to_influx(data_points):
 def run_sync():
     logger.info("Starting sync cycle...")
     ny_tz = pytz.timezone('America/New_York')
-    current_sync_time = datetime.now(ny_tz).replace(tzinfo=None)
+    current_sync_time = datetime.now(ny_tz)
     
     tgt_conn = None
     try:
