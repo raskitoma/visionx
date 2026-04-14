@@ -17,6 +17,7 @@ services:
       - ./app/main.py:/app/main.py
       - ./app/sync_engine.py:/app/sync_engine.py
       - ./app/config.py:/app/config.py
-      - ./app/static:/app/static
+      - ./app/static/novnc:/app/static/novnc
+      - ./app/static/vnc_viewer.html:/app/static/vnc_viewer.html
       - ./logs:/app/logs
     restart: always
