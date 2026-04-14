@@ -158,9 +158,13 @@ def run_sync():
                             col_names = ", ".join([f"`{c}`" for c in cols])
                             
                             # ON DUPLICATE KEY UPDATE: exclude StartTime and created_at
-                            update_parts = []
+                            # LastUpdate ONLY if any content columns changed
+                            content_cols = [c for c in rd_filtered.keys() if c not in ['SyncUp', 'LastUpdate', 'created_at', 'StartTime']]
+                            change_cond = " OR ".join([f"NOT (`{c}` <=> VALUES(`{c}`))" for c in content_cols])
+                            update_parts = [f"`LastUpdate` = IF({change_cond}, CURRENT_TIMESTAMP, `LastUpdate`)"]
+                            
                             for c in cols:
-                                if c not in ['StartTime', 'created_at']:
+                                if c not in ['StartTime', 'created_at', 'LastUpdate']:
                                     update_parts.append(f"`{c}`=VALUES(`{c}`)")
                             update_clause = ", ".join(update_parts)
                             
@@ -206,7 +210,13 @@ def run_sync():
                             col_names = ", ".join([f"`{c}`" for c in cols])
                             
                             # ON DUPLICATE KEY UPDATE: exclude created_at
-                            update_parts = [f"`{c}`=VALUES(`{c}`)" for c in cols if c != 'created_at']
+                            content_cols = [c for c in ld_filtered.keys() if c not in ['SyncUp', 'LastUpdate', 'created_at']]
+                            change_cond = " OR ".join([f"NOT (`{c}` <=> VALUES(`{c}`))" for c in content_cols])
+                            update_parts = [f"`LastUpdate` = IF({change_cond}, CURRENT_TIMESTAMP, `LastUpdate`)"]
+                            
+                            for c in cols:
+                                if c not in ['created_at', 'LastUpdate']:
+                                    update_parts.append(f"`{c}`=VALUES(`{c}`)")
                             update_clause = ", ".join(update_parts)
                             
                             q = f"INSERT INTO `vision_lanes` ({col_names}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"
@@ -239,7 +249,13 @@ def run_sync():
                             col_names = ", ".join([f"`{c}`" for c in cols])
                             
                             # ON DUPLICATE KEY UPDATE: exclude created_at
-                            update_parts = [f"`{c}`=VALUES(`{c}`)" for c in cols if c != 'created_at']
+                            content_cols = [c for c in sd_filtered.keys() if c not in ['SyncUp', 'LastUpdate', 'created_at']]
+                            change_cond = " OR ".join([f"NOT (`{c}` <=> VALUES(`{c}`))" for c in content_cols])
+                            update_parts = [f"`LastUpdate` = IF({change_cond}, CURRENT_TIMESTAMP, `LastUpdate`)"]
+                            
+                            for c in cols:
+                                if c not in ['created_at', 'LastUpdate']:
+                                    update_parts.append(f"`{c}`=VALUES(`{c}`)")
                             update_clause = ", ".join(update_parts)
 
                             q = f"INSERT INTO `vision_samples` ({col_names}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"

@@ -34,6 +34,43 @@ function num(v, decimals = 0) {
   return decimals > 0 ? Number(v).toFixed(decimals) : Number(v).toLocaleString();
 }
 
+function RelativeTime({ timestamp, serverTime }) {
+  const [text, setText] = useState('—');
+
+  useEffect(() => {
+    if (!timestamp || !serverTime) {
+      setText('—');
+      return;
+    }
+
+    const update = () => {
+      const ts = new Date(timestamp).getTime();
+      const server = new Date(serverTime).getTime();
+      const localAtFetch = Date.now();
+      
+      const now = server + (Date.now() - localAtFetch);
+      const diffSec = Math.floor((now - ts) / 1000);
+
+      if (diffSec < 60) {
+        setText('just now');
+      } else if (diffSec < 3600) {
+        const m = Math.floor(diffSec / 60);
+        setText(`${m}m ago`);
+      } else {
+        const h = Math.floor(diffSec / 3600);
+        const m = Math.floor((diffSec % 3600) / 60);
+        setText(`${h}h ${m}m ago`);
+      }
+    };
+
+    update();
+    const timer = setInterval(update, 30000); // update every 30s
+    return () => clearInterval(timer);
+  }, [timestamp, serverTime]);
+
+  return <span>{text}</span>;
+}
+
 // ── sub-components ───────────────────────────────────────────────────────────
 
 function MetricCard({ label, value, accent }) {
@@ -178,39 +215,82 @@ function RunInfoStrip({ run, serverTime }) {
       </div>
 
       <div className="run-times-footer">
-        <span>Started: {fmt(run.StartTime)}</span>
-        <span>Last Sample: {fmt(run.LastTime)}</span>
+        <div className="footer-left">
+          <span>Started: {fmt(run.StartTime)}</span>
+          <span>Last Sample: {fmt(run.LastTime)}</span>
+        </div>
+        <div className="footer-right">
+          {run.LastUpdate && (
+            <span className="last-update-tag">
+              Last Value Change: <RelativeTime timestamp={run.LastUpdate} serverTime={serverTime} />
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-function LineCard({ lineName, status, run, serverTime }) {
+function MinuteStatsCard({ lineName, stats }) {
+  if (!stats) return null;
+  
+  return (
+    <div className="minute-card">
+      <div className="minute-card__header">
+        <h3>{lineName} <span className="minute-label">LAST MINUTE</span></h3>
+      </div>
+      <div className="minute-card__body">
+        <div className="min-stat">
+          <span className="min-stat-label">DET</span>
+          <span className="min-stat-value">{num(stats.nDetected)}</span>
+        </div>
+        <div className="min-stat">
+          <span className="min-stat-label">PASS</span>
+          <span className="min-stat-value text-green">{num(stats.nPassed)}</span>
+        </div>
+        <div className="min-stat">
+          <span className="min-stat-label">REJ</span>
+          <span className="min-stat-value text-red">{num(stats.nRejected)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LineCard({ lineName, status, run, minuteStats, serverTime }) {
   const isOnline = status?.status === 'online';
   const hasError = status?.status === 'error';
   const isRunning = run && !run.EndTime;
 
   return (
-    <section className={`line-card ${hasError ? 'line-card--error' : ''} ${isRunning ? 'line-card--running' : ''}`}>
-      <header className="line-card__header">
-        <div className="line-card__title">
-          <StatusCircle status={status?.status} isRunning={isRunning} />
-          <h2>{lineName}</h2>
-          {isRunning && <span className="running-tag">RUNNING</span>}
-        </div>
-        <div className="line-card__meta">
-          {status?.last_sync && (
-            <span className="last-contact">Synced {fmt(status.last_sync)}</span>
-          )}
-        </div>
-      </header>
+    <div className="line-container">
+      <section className={`line-card ${hasError ? 'line-card--error' : ''} ${isRunning ? 'line-card--running' : ''}`}>
+        <header className="line-card__header">
+          <div className="line-card__title">
+            <StatusCircle status={status?.status} isRunning={isRunning} />
+            <h2>{lineName}</h2>
+            {isRunning && <span className="running-tag">RUNNING</span>}
+          </div>
+          <div className="line-card__meta">
+            {status?.last_sync && (
+              <span className="last-contact">Synced {fmt(status.last_sync)}</span>
+            )}
+          </div>
+        </header>
 
-      {hasError && (
-        <div className="error-banner">⚠ {status.error || 'Sync Error'}</div>
+        {hasError && (
+          <div className="error-banner">⚠ {status.error || 'Sync Error'}</div>
+        )}
+
+        <RunInfoStrip run={run} serverTime={serverTime} />
+      </section>
+      
+      {minuteStats && (
+        <div className="minute-stats-row">
+          <MinuteStatsCard lineName={lineName} stats={minuteStats} />
+        </div>
       )}
-
-      <RunInfoStrip run={run} serverTime={serverTime} />
-    </section>
+    </div>
   );
 }
 
@@ -244,6 +324,7 @@ const REFRESH_INTERVAL = 60; // seconds
 export default function App() {
   const [status, setStatus] = useState({ lines: {}, last_sync: null });
   const [runs, setRuns] = useState({});
+  const [minuteStats, setMinuteStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [countdown, setCountdown] = useState(REFRESH_INTERVAL);
@@ -253,10 +334,12 @@ export default function App() {
     Promise.all([
       fetch('/api/status').then(r => r.json()),
       fetch('/api/runs').then(r => r.json()),
+      fetch('/api/minute_stats').then(r => r.json()),
     ])
-      .then(([s, ru]) => {
+      .then(([s, ru, ms]) => {
         setStatus(s);
         setRuns(ru);
+        setMinuteStats(ms);
         setError(null);
         setLoading(false);
       })
@@ -327,6 +410,7 @@ export default function App() {
               lineName={line}
               status={status.lines[line]}
               run={runs[line]}
+              minuteStats={minuteStats[line]}
               serverTime={status.serverTime}
             />
           ))}

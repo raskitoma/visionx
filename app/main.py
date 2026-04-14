@@ -65,7 +65,8 @@ def get_runs():
                         r.nPassed,
                         r.nMarginal,
                         r.nRejected,
-                        r.WidthAverage
+                        r.WidthAverage,
+                        r.LastUpdate
                     FROM vision_runs r
                     INNER JOIN (
                         SELECT SourceLine, MAX(RunId) AS MaxRunId
@@ -97,11 +98,57 @@ def get_runs():
                 'nMarginal':    row['nMarginal'],
                 'nRejected':    row['nRejected'],
                 'WidthAverage': row['WidthAverage'],
+                'LastUpdate':   safe_localize(row['LastUpdate']),
             }
         return result
     except Exception as e:
         logging.error(f"Error fetching runs: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
+
+@app.get("/api/minute_stats")
+def get_minute_stats():
+    if not TARGET:
+        return JSONResponse({"error": "No target DB configured"}, status_code=503)
+    try:
+        conn = pymysql.connect(
+            host=TARGET['host'],
+            port=TARGET['port'],
+            user=TARGET['user'],
+            password=TARGET['password'],
+            database=TARGET['database'],
+            cursorclass=pymysql.cursors.DictCursor,
+            charset='latin1',
+            connect_timeout=5,
+        )
+        with conn:
+            with conn.cursor() as cur:
+                # Aggregate samples from the last minute
+                cur.execute("""
+                    SELECT 
+                        SourceLine,
+                        SUM(nDetected) as nDetected,
+                        SUM(nPassed) as nPassed,
+                        SUM(nMarginal) as nMarginal,
+                        SUM(nRejected) as nRejected
+                    FROM vision_samples
+                    WHERE SyncUp >= NOW() - INTERVAL 1 MINUTE
+                    GROUP BY SourceLine
+                """)
+                rows = cur.fetchall()
+        
+        result = {}
+        for row in rows:
+            result[row['SourceLine']] = {
+                'nDetected': int(row['nDetected'] or 0),
+                'nPassed':   int(row['nPassed'] or 0),
+                'nMarginal': int(row['nMarginal'] or 0),
+                'nRejected': int(row['nRejected'] or 0),
+            }
+        return result
+    except Exception as e:
+        logging.error(f"Error fetching minute stats: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
 
 # ── Static File Serving ───────────────────────────────────────────────────────
 static_dir = os.path.join(os.path.dirname(__file__), "static")

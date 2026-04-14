@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS `vision_runs` (
   `nRawMax` int(11) DEFAULT '0', `nTransMax` int(11) DEFAULT '0',
   `nLaneMin` int(11) DEFAULT '0', `nLaneMax` int(11) DEFAULT '0',
   `SyncUp` datetime DEFAULT NULL,
+  `LastUpdate` datetime DEFAULT NULL,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`SourceLine`, `RunId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
@@ -65,6 +67,8 @@ CREATE TABLE IF NOT EXISTS `vision_lanes` (
   `nRawMax` int(11) DEFAULT '0', `nTransMax` int(11) DEFAULT '0',
   `nLaneMin` int(11) DEFAULT '0', `nLaneMax` int(11) DEFAULT '0',
   `SyncUp` datetime DEFAULT NULL,
+  `LastUpdate` datetime DEFAULT NULL,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`SourceLine`, `RunId`, `LaneId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
@@ -99,5 +103,7 @@ CREATE TABLE IF NOT EXISTS `vision_samples` (
   `nRawMax` int(11) DEFAULT '0', `nTransMax` int(11) DEFAULT '0',
   `nLaneMin` int(11) DEFAULT '0', `nLaneMax` int(11) DEFAULT '0',
   `SyncUp` datetime DEFAULT NULL,
+  `LastUpdate` datetime DEFAULT NULL,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`SourceLine`, `RunId`, `LaneId`, `SampNo`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;

@@ -422,6 +422,88 @@ h1,h2 { margin: 0; font-weight: 600; color: var(--text-bright); }
   font-size: 16px;
 }
 
+/* ── Footer extras ────────────────────────────────────────────────────────── */
+.last-update-tag {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--cyan);
+  background: rgba(34, 211, 238, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(34, 211, 238, 0.15);
+}
+
+.text-green { color: var(--green); }
+.text-red   { color: var(--red); }
+
+/* ── Minute Stats Layout ──────────────────────────────────────────────────── */
+.line-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.minute-stats-row {
+  display: flex;
+  gap: 12px;
+  padding-left: 20px; /* indent slightly from main card */
+}
+
+.minute-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-width: 400px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+}
+
+.minute-card__header h3 {
+  font-size: 13px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-bright);
+}
+
+.minute-label {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--accent);
+  background: var(--accent-glow);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.minute-card__body {
+  display: flex;
+  gap: 24px;
+  flex: 1;
+}
+
+.min-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.min-stat-label {
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+}
+
+.min-stat-value {
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+}
+
 /* ── Responsive ────────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .dashboard-header { padding: 14px 16px; }
@@ -429,4 +511,6 @@ h1,h2 { margin: 0; font-weight: 600; color: var(--text-bright); }
   .dashboard-title  { font-size: 16px; }
   .global-sync      { display: none; }
   .run-strip        { padding: 12px 14px; }
+  .minute-card      { min-width: unset; width: 100%; }
+  .minute-stats-row { padding-left: 0; }
 }
