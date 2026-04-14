@@ -4,7 +4,7 @@ import pytz
 from datetime import datetime
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
-from config import SOURCES, TARGET, INFLUX, RECORDS_LIMIT
+from config import SOURCES, TARGET, INFLUX, RECORDS_LIMIT, VNC_PORT, VNC_PASSWORD
 
 import os
 
@@ -23,6 +23,8 @@ logger = logging.getLogger(__name__)
 
 sync_state = {
     "lines": {},
+    "vnc_port": VNC_PORT,
+    "vnc_password": VNC_PASSWORD,
     "last_sync": None
 }
 
@@ -280,6 +282,7 @@ def run_sync():
                     write_to_influx(influx_points)
 
                 sync_state['lines'][line] = {
+                    "host": src['host'],
                     "last_run_id": runs_data[-1]['RunId'] if runs_data else last_run_id,
                     "last_samp_no": samples_data[-1]['SampNo'] if samples_data else last_samp_no,
                     "status": "online",
@@ -290,6 +293,7 @@ def run_sync():
         except Exception as e:
             logger.error(f"Error syncing {line}: {e}")
             sync_state['lines'][line] = {
+                "host": src['host'],
                 "status": "error",
                 "error": str(e),
                 "last_sync": current_sync_time.isoformat()

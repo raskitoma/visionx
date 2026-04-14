@@ -68,3 +68,6 @@ INFLUX = {
     "org": os.getenv("INFLUX_ORG", ""),
     "bucket": os.getenv("INFLUX_BUCKET", "")
 }
+
+VNC_PORT = os.getenv("VNC_PORT", "5900")
+VNC_PASSWORD = os.getenv("VNC_PASSWORD", "1043")

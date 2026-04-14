@@ -231,6 +231,38 @@ function RunInfoStrip({ run, serverTime }) {
   );
 }
 
+function VncCard({ host, port, password }) {
+  if (!host) return null;
+  const vncUrl = `vnc://${host}:${port}`;
+  
+  return (
+    <div className="vnc-card">
+      <div className="vnc-card__header">
+        <h3>REMOTE ACCESS <span className="vnc-label">VNC</span></h3>
+      </div>
+      <div className="vnc-card__body">
+        <div className="vnc-info">
+          <div className="vnc-field">
+            <span className="vnc-field-label">IP</span>
+            <span className="vnc-field-value">{host}</span>
+          </div>
+          <div className="vnc-field">
+            <span className="vnc-field-label">PORT</span>
+            <span className="vnc-field-value">{port}</span>
+          </div>
+          <div className="vnc-field">
+            <span className="vnc-field-label">VIEW PASS</span>
+            <span className="vnc-field-value">{password || 'None'}</span>
+          </div>
+        </div>
+        <a href={vncUrl} className="vnc-link-btn">
+          OPEN SCREEN
+        </a>
+      </div>
+    </div>
+  );
+}
+
 function MinuteStatsCard({ lineName, stats }) {
   if (!stats) return null;
   
@@ -257,7 +289,7 @@ function MinuteStatsCard({ lineName, stats }) {
   );
 }
 
-function LineCard({ lineName, status, run, minuteStats, serverTime }) {
+function LineCard({ lineName, status, run, minuteStats, serverTime, vncPort, vncPassword }) {
   const isOnline = status?.status === 'online';
   const hasError = status?.status === 'error';
   const isRunning = run && !run.EndTime;
@@ -285,11 +317,10 @@ function LineCard({ lineName, status, run, minuteStats, serverTime }) {
         <RunInfoStrip run={run} serverTime={serverTime} />
       </section>
       
-      {minuteStats && (
-        <div className="minute-stats-row">
-          <MinuteStatsCard lineName={lineName} stats={minuteStats} />
-        </div>
-      )}
+      <div className="line-extra-row">
+        {minuteStats && <MinuteStatsCard lineName={lineName} stats={minuteStats} />}
+        <VncCard host={status?.host} port={vncPort} password={vncPassword} />
+      </div>
     </div>
   );
 }
@@ -412,6 +443,8 @@ export default function App() {
               run={runs[line]}
               minuteStats={minuteStats[line]}
               serverTime={status.serverTime}
+              vncPort={status.vnc_port}
+              vncPassword={status.vnc_password}
             />
           ))}
         </div>
