@@ -16,9 +16,9 @@
         <div id="screen"></div>
     </div>
 
-    <!-- Load noVNC from CDN -->
+    <!-- Use local noVNC assets -->
     <script type="module">
-        import RFB from 'https://cdn.jsdelivr.net/npm/@novnc/novnc@1.5.0/core/rfb.js';
+        import RFB from './novnc/core/rfb.js';
 
         const params = new URLSearchParams(window.location.search);
         const host = params.get('host');

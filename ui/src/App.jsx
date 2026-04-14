@@ -231,31 +231,104 @@ function RunInfoStrip({ run, serverTime }) {
   );
 }
 
-function VncModal({ vncConfig, onClose }) {
+function VncModal({ vncConfig, lineData, onClose }) {
   if (!vncConfig) return null;
   const { host, port, password } = vncConfig;
   const viewerUrl = `/vnc_viewer.html?host=${host}&port=${port}&password=${password}`;
 
+  // Metrics for the QC panel
+  const run = lineData?.run;
+  const minuteStats = lineData?.minuteStats;
+  const serverTime = lineData?.serverTime;
+  const isRunning = run && !run.EndTime;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content vnc-modal" onClick={e => e.stopPropagation()}>
+      <div className="modal-content vnc-qc-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>VNC REMOTE: {host}:{port}</h3>
+          <div className="modal-header__title">
+            <div className="vnc-label">VNC REMOTE</div>
+            <h3>{lineData?.lineName || 'Machine'}: {host}</h3>
+          </div>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
-        <div className="modal-body">
-          <iframe 
-            src={viewerUrl} 
-            title="VNC Viewer"
-            className="vnc-iframe"
-          />
+        
+        <div className="modal-body qc-split-layout">
+          <div className="qc-vnc-panel">
+            <iframe 
+              src={viewerUrl} 
+              title="VNC Viewer"
+              className="vnc-iframe"
+            />
+          </div>
+          
+          <aside className="qc-side-panel">
+            <div className="qc-section-header">LIVE QUALITY CONTROL</div>
+            
+            <div className="qc-run-info">
+              <div className="qc-run-id">
+                <span className="qc-label">RUN ID</span>
+                <span className="qc-value">{run?.RunId || '—'}</span>
+              </div>
+              <div className="qc-run-timer">
+                <span className="qc-label">ELAPSED</span>
+                <ElapsedTimer startTime={run?.StartTime} serverTime={serverTime} isRunning={isRunning} />
+              </div>
+            </div>
+
+            <div className="qc-stats-grid">
+              <div className="qc-stat-box">
+                <span className="qc-label">DETECTED</span>
+                <span className="qc-value">{num(run?.nDetected)}</span>
+              </div>
+              <div className="qc-stat-box qc-stat-box--good">
+                <span className="qc-label">PASSED</span>
+                <span className="qc-value">{num(run?.nPassed)}</span>
+                <span className="qc-pct">{run?.nDetected ? num((run.nPassed / run.nDetected) * 100, 1) : 0}%</span>
+              </div>
+              <div className="qc-stat-box qc-stat-box--bad">
+                <span className="qc-label">REJECTED</span>
+                <span className="qc-value">{num(run?.nRejected)}</span>
+                <span className="qc-pct">{run?.nDetected ? num((run.nRejected / run.nDetected) * 100, 1) : 0}%</span>
+              </div>
+            </div>
+
+            {minuteStats && (
+              <div className="qc-minute-section">
+                <div className="qc-section-header">LAST MINUTE PERFORMANCE</div>
+                <div className="qc-min-stats">
+                  <div className="qc-min-item">
+                    <span className="qc-label">DET</span>
+                    <span className="qc-value">{num(minuteStats.nDetected)}</span>
+                  </div>
+                  <div className="qc-min-item">
+                    <span className="qc-label">PASS</span>
+                    <span className="qc-value text-green">{num(minuteStats.nPassed)}</span>
+                  </div>
+                  <div className="qc-min-item">
+                    <span className="qc-label">REJ</span>
+                    <span className="qc-value text-red">{num(minuteStats.nRejected)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="qc-footer">
+              <div className="qc-tag">QC MODE ACTIVE</div>
+              {run?.LastUpdate && (
+                <div className="qc-last-update">
+                  Update: <RelativeTime timestamp={run.LastUpdate} serverTime={serverTime} />
+                </div>
+              )}
+            </div>
+          </aside>
         </div>
       </div>
     </div>
   );
 }
 
-function VncCard({ host, port, password, onOpen }) {
+function VncCard({ host, port, password, lineData, onOpen }) {
   if (!host) return null;
   
   return (
@@ -273,12 +346,8 @@ function VncCard({ host, port, password, onOpen }) {
             <span className="vnc-field-label">PORT</span>
             <span className="vnc-field-value">{port}</span>
           </div>
-          <div className="vnc-field">
-            <span className="vnc-field-label">VIEW PASS</span>
-            <span className="vnc-field-value">{password || 'None'}</span>
-          </div>
         </div>
-        <button onClick={() => onOpen({ host, port, password })} className="vnc-link-btn">
+        <button onClick={() => onOpen({ vncConfig: { host, port, password }, lineData })} className="vnc-link-btn">
           OPEN SCREEN
         </button>
       </div>
@@ -317,6 +386,8 @@ function LineCard({ lineName, status, run, minuteStats, serverTime, vncPort, vnc
   const hasError = status?.status === 'error';
   const isRunning = run && !run.EndTime;
 
+  const lineData = { lineName, status, run, minuteStats, serverTime };
+
   return (
     <div className="line-container">
       <section className={`line-card ${hasError ? 'line-card--error' : ''} ${isRunning ? 'line-card--running' : ''}`}>
@@ -342,7 +413,13 @@ function LineCard({ lineName, status, run, minuteStats, serverTime, vncPort, vnc
       
       <div className="line-extra-row">
         {minuteStats && <MinuteStatsCard lineName={lineName} stats={minuteStats} />}
-        <VncCard host={status?.host} port={vncPort} password={vncPassword} onOpen={onVncOpen} />
+        <VncCard 
+          host={status?.host} 
+          port={vncPort} 
+          password={vncPassword} 
+          lineData={lineData}
+          onOpen={onVncOpen} 
+        />
       </div>
     </div>
   );
@@ -475,7 +552,11 @@ export default function App() {
         </div>
       </main>
 
-      <VncModal vncConfig={activeVnc} onClose={() => setActiveVnc(null)} />
+      <VncModal 
+        vncConfig={activeVnc?.vncConfig} 
+        lineData={activeVnc?.lineData}
+        onClose={() => setActiveVnc(null)} 
+      />
     </div>
   );
 }

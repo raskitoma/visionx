@@ -668,13 +668,3 @@ h1,h2 { margin: 0; font-weight: 600; color: var(--text-bright); }
   display: block;
 }
 
-/* ── Responsive ────────────────────────────────────────────────────────────── */
-@media (max-width: 768px) {
-  .dashboard-header { padding: 14px 16px; }
-  .dashboard-main   { padding: 16px; }
-  .dashboard-title  { font-size: 16px; }
-  .global-sync      { display: none; }
-  .run-strip        { padding: 12px 14px; }
-  .minute-card      { min-width: unset; width: 100%; }
-  .minute-stats-row { padding-left: 0; }
-}

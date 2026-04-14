@@ -17,5 +17,6 @@ services:
       - ./app/main.py:/app/main.py
       - ./app/sync_engine.py:/app/sync_engine.py
       - ./app/config.py:/app/config.py
+      - ./app/static:/app/static
       - ./logs:/app/logs
     restart: always
