@@ -170,9 +170,6 @@ def run_sync():
                             except Exception as ex:
                                 logger.error(f"Error inserting run {rd.get('RunId')}: {ex}")
 
-                            # InfluxDB point uses the same logic: use overridden or source time
-                            p_time = rd['StartTime'] if src.get('override_time') else (rd.get('StartTime') or current_sync_time)
-
                             p = Point("production_run") \
                                 .tag("line", line) \
                                 .tag("RunId", str(rd['RunId'])) \
@@ -180,8 +177,7 @@ def run_sync():
                                 .field("nDetected", int(rd.get('nDetected', 0) or 0)) \
                                 .field("nPassed", int(rd.get('nPassed', 0) or 0)) \
                                 .field("nMarginal", int(rd.get('nMarginal', 0) or 0)) \
-                                .field("nRejected", int(rd.get('nRejected', 0) or 0)) \
-                                .time(p_time, WritePrecision.NS)
+                                .field("nRejected", int(rd.get('nRejected', 0) or 0))
                             influx_points.append(p)
                 
                 # Sync lanes
@@ -252,17 +248,13 @@ def run_sync():
                             except Exception as ex:
                                 pass
                                 
-                            # InfluxDB point uses the same logic
-                            p_time = sd['SampTime'] if src.get('override_time') else (sd.get('SampTime') or current_sync_time)
-
                             p = Point("production_sample") \
                                 .tag("line", line) \
                                 .tag("lane", sd.get('LaneId', '*')) \
                                 .field("nDetected", int(sd.get('nDetected', 0) or 0)) \
                                 .field("nPassed", int(sd.get('nPassed', 0) or 0)) \
                                 .field("nMarginal", int(sd.get('nMarginal', 0) or 0)) \
-                                .field("nRejected", int(sd.get('nRejected', 0) or 0)) \
-                                .time(p_time, WritePrecision.NS)
+                                .field("nRejected", int(sd.get('nRejected', 0) or 0))
                             
                             influx_points.append(p)
                 
