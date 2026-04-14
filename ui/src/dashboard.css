@@ -668,3 +668,75 @@ h1,h2 { margin: 0; font-weight: 600; color: var(--text-bright); }
   display: block;
 }
 
+/* ── QC VNC Layout (New) ─────────────────────────────────────────────────── */
+.vnc-qc-modal {
+  max-width: 95vw;
+  max-height: 95vh;
+}
+
+.qc-stats-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 24px;
+  background: rgba(0,0,0,0.4);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.qc-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 14px;
+  background: var(--bg-metric);
+  border: 1px solid var(--border-card);
+  border-radius: 6px;
+  min-width: 110px;
+}
+
+.qc-stat-card--accent {
+  border-color: var(--cyan);
+  background: rgba(34, 211, 238, 0.05);
+}
+
+.qc-stat-card .qc-label {
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.qc-stat-card .qc-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-bright);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.qc-stat-card--good { border-left: 2px solid var(--green); }
+.qc-stat-card--bad  { border-left: 2px solid var(--red); }
+.qc-stat-card--alert { border-left: 2px solid var(--cyan); }
+
+.qc-stats-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 12px;
+  border-right: 1px solid var(--border);
+}
+.qc-stats-group:last-child {
+  border-right: none;
+}
+
+.qc-group-label {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--text-dim);
+  writing-mode: vertical-lr;
+  transform: rotate(180deg);
+  opacity: 0.6;
+}
+

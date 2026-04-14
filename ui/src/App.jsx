@@ -253,75 +253,78 @@ function VncModal({ vncConfig, lineData, onClose }) {
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
         
-        <div className="modal-body qc-split-layout">
-          <div className="qc-vnc-panel">
-            <iframe 
-              src={viewerUrl} 
-              title="VNC Viewer"
-              className="vnc-iframe"
-            />
-          </div>
-          
-          <aside className="qc-side-panel">
-            <div className="qc-section-header">LIVE QUALITY CONTROL</div>
-            
-            <div className="qc-run-info">
-              <div className="qc-run-id">
+        <div className="modal-body">
+          <div className="qc-stats-bar">
+            {/* Run Identity & Timer */}
+            <div className="qc-stats-group">
+              <div className="qc-group-label">RUN</div>
+              <div className="qc-stat-card">
                 <span className="qc-label">RUN ID</span>
                 <span className="qc-value">{run?.RunId || '—'}</span>
               </div>
-              <div className="qc-run-timer">
+              <div className="qc-stat-card qc-stat-card--accent">
                 <span className="qc-label">ELAPSED</span>
-                <ElapsedTimer startTime={run?.StartTime} serverTime={serverTime} isRunning={isRunning} />
+                <div className="qc-value">
+                  <ElapsedTimer startTime={run?.StartTime} serverTime={serverTime} isRunning={isRunning} />
+                </div>
               </div>
             </div>
 
-            <div className="qc-stats-grid">
-              <div className="qc-stat-box">
+            {/* Cumulative Stats */}
+            <div className="qc-stats-group">
+              <div className="qc-group-label">STATS</div>
+              <div className="qc-stat-card">
                 <span className="qc-label">DETECTED</span>
                 <span className="qc-value">{num(run?.nDetected)}</span>
               </div>
-              <div className="qc-stat-box qc-stat-box--good">
+              <div className="qc-stat-card qc-stat-card--good">
                 <span className="qc-label">PASSED</span>
-                <span className="qc-value">{num(run?.nPassed)}</span>
-                <span className="qc-pct">{run?.nDetected ? num((run.nPassed / run.nDetected) * 100, 1) : 0}%</span>
+                <span className="qc-value">
+                  {num(run?.nPassed)} <span style={{opacity: 0.6}}>({run?.nDetected ? num((run.nPassed / run.nDetected) * 100, 1) : 0}%)</span>
+                </span>
               </div>
-              <div className="qc-stat-box qc-stat-box--bad">
+              <div className="qc-stat-card qc-stat-card--bad">
                 <span className="qc-label">REJECTED</span>
-                <span className="qc-value">{num(run?.nRejected)}</span>
-                <span className="qc-pct">{run?.nDetected ? num((run.nRejected / run.nDetected) * 100, 1) : 0}%</span>
+                <span className="qc-value">
+                  {num(run?.nRejected)} <span style={{opacity: 0.6}}>({run?.nDetected ? num((run.nRejected / run.nDetected) * 100, 1) : 0}%)</span>
+                </span>
               </div>
             </div>
 
+            {/* Minute Stats */}
             {minuteStats && (
-              <div className="qc-minute-section">
-                <div className="qc-section-header">LAST MINUTE PERFORMANCE</div>
-                <div className="qc-min-stats">
-                  <div className="qc-min-item">
-                    <span className="qc-label">DET</span>
-                    <span className="qc-value">{num(minuteStats.nDetected)}</span>
-                  </div>
-                  <div className="qc-min-item">
-                    <span className="qc-label">PASS</span>
-                    <span className="qc-value text-green">{num(minuteStats.nPassed)}</span>
-                  </div>
-                  <div className="qc-min-item">
-                    <span className="qc-label">REJ</span>
-                    <span className="qc-value text-red">{num(minuteStats.nRejected)}</span>
-                  </div>
+              <div className="qc-stats-group">
+                <div className="qc-group-label">L.MIN</div>
+                <div className="qc-stat-card">
+                  <span className="qc-label">DET / PASS</span>
+                  <span className="qc-value">
+                    {num(minuteStats.nDetected)} / <span className="text-green">{num(minuteStats.nPassed)}</span>
+                  </span>
+                </div>
+                <div className="qc-stat-card">
+                  <span className="qc-label">REJECTED</span>
+                  <span className="qc-value text-red">{num(minuteStats.nRejected)}</span>
                 </div>
               </div>
             )}
 
-            <div className="qc-footer">
-              <div className="qc-tag">QC MODE ACTIVE</div>
-              {run?.LastUpdate && (
-                <div className="qc-last-update">
-                  Update: <RelativeTime timestamp={run.LastUpdate} serverTime={serverTime} />
-                </div>
-              )}
+            {/* Sync Info */}
+            <div className="qc-stats-group">
+              <div className="qc-group-label">SYNC</div>
+              <div className="qc-stat-card">
+                <span className="qc-label">LAST UPDATE</span>
+                <span className="qc-value">
+                  {run?.LastUpdate ? <RelativeTime timestamp={run.LastUpdate} serverTime={serverTime} /> : '—'}
+                </span>
+              </div>
             </div>
-          </aside>
+          </div>
+
+          <iframe 
+            src={viewerUrl} 
+            title="VNC Viewer"
+            className="vnc-iframe"
+          />
         </div>
       </div>
     </div>
