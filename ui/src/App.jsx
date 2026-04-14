@@ -231,9 +231,32 @@ function RunInfoStrip({ run, serverTime }) {
   );
 }
 
-function VncCard({ host, port, password }) {
+function VncModal({ vncConfig, onClose }) {
+  if (!vncConfig) return null;
+  const { host, port, password } = vncConfig;
+  const viewerUrl = `/vnc_viewer.html?host=${host}&port=${port}&password=${password}`;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content vnc-modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>VNC REMOTE: {host}:{port}</h3>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        <div className="modal-body">
+          <iframe 
+            src={viewerUrl} 
+            title="VNC Viewer"
+            className="vnc-iframe"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VncCard({ host, port, password, onOpen }) {
   if (!host) return null;
-  const vncUrl = `vnc://${host}:${port}`;
   
   return (
     <div className="vnc-card">
@@ -255,9 +278,9 @@ function VncCard({ host, port, password }) {
             <span className="vnc-field-value">{password || 'None'}</span>
           </div>
         </div>
-        <a href={vncUrl} className="vnc-link-btn">
+        <button onClick={() => onOpen({ host, port, password })} className="vnc-link-btn">
           OPEN SCREEN
-        </a>
+        </button>
       </div>
     </div>
   );
@@ -289,7 +312,7 @@ function MinuteStatsCard({ lineName, stats }) {
   );
 }
 
-function LineCard({ lineName, status, run, minuteStats, serverTime, vncPort, vncPassword }) {
+function LineCard({ lineName, status, run, minuteStats, serverTime, vncPort, vncPassword, onVncOpen }) {
   const isOnline = status?.status === 'online';
   const hasError = status?.status === 'error';
   const isRunning = run && !run.EndTime;
@@ -319,7 +342,7 @@ function LineCard({ lineName, status, run, minuteStats, serverTime, vncPort, vnc
       
       <div className="line-extra-row">
         {minuteStats && <MinuteStatsCard lineName={lineName} stats={minuteStats} />}
-        <VncCard host={status?.host} port={vncPort} password={vncPassword} />
+        <VncCard host={status?.host} port={vncPort} password={vncPassword} onOpen={onVncOpen} />
       </div>
     </div>
   );
@@ -357,6 +380,7 @@ export default function App() {
   const [runs, setRuns] = useState({});
   const [minuteStats, setMinuteStats] = useState({});
   const [loading, setLoading] = useState(true);
+  const [activeVnc, setActiveVnc] = useState(null);
   const [error, setError] = useState(null);
   const [countdown, setCountdown] = useState(REFRESH_INTERVAL);
 
@@ -445,10 +469,13 @@ export default function App() {
               serverTime={status.serverTime}
               vncPort={status.vnc_port}
               vncPassword={status.vnc_password}
+              onVncOpen={setActiveVnc}
             />
           ))}
         </div>
       </main>
+
+      <VncModal vncConfig={activeVnc} onClose={() => setActiveVnc(null)} />
     </div>
   );
 }

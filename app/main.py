@@ -1,6 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
+import asyncio
 from apscheduler.schedulers.background import BackgroundScheduler
 import os
 import logging
@@ -159,6 +160,55 @@ def get_minute_stats():
     except Exception as e:
         logging.error(f"Error fetching minute stats: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
+
+@app.websocket("/ws/vnc/{host}/{port}")
+async def vnc_proxy(websocket: WebSocket, host: str, port: int):
+    await websocket.accept()
+    try:
+        # Connect to VNC server (TCP)
+        # Using a small timeout to avoid hanging
+        reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=5.0)
+        
+        async def forward_ws_to_tcp():
+            try:
+                while True:
+                    data = await websocket.receive_bytes()
+                    writer.write(data)
+                    await writer.drain()
+            except Exception:
+                pass
+            finally:
+                if not writer.is_closing():
+                    writer.close()
+                    try:
+                        await writer.wait_closed()
+                    except:
+                        pass
+
+        async def forward_tcp_to_ws():
+            try:
+                while True:
+                    data = await reader.read(8192) # Increased buffer for better performance
+                    if not data:
+                        break
+                    await websocket.send_bytes(data)
+            except Exception:
+                pass
+            finally:
+                try:
+                    await websocket.close()
+                except:
+                    pass
+
+        # Run both directions concurrently
+        await asyncio.gather(forward_ws_to_tcp(), forward_tcp_to_ws())
+        
+    except Exception as e:
+        logging.error(f"VNC Proxy Connection Error to {host}:{port}: {e}")
+        try:
+            await websocket.close(code=1006)
+        except:
+            pass
 
 
 # ── Static File Serving ───────────────────────────────────────────────────────

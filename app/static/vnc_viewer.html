@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisionX VNC Viewer</title>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
+        #vnc-container { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+        #status { position: absolute; top: 10px; left: 10px; color: #fff; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 4px; z-index: 100; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div id="status">Connecting...</div>
+    <div id="vnc-container">
+        <div id="screen"></div>
+    </div>
+
+    <!-- Load noVNC from CDN -->
+    <script type="module">
+        import RFB from 'https://cdn.jsdelivr.net/npm/@novnc/novnc@1.5.0/core/rfb.js';
+
+        const params = new URLSearchParams(window.location.search);
+        const host = params.get('host');
+        const port = params.get('port');
+        const password = params.get('password');
+        const statusEl = document.getElementById('status');
+
+        if (!host || !port) {
+            statusEl.innerText = 'Error: Missing host/port';
+        } else {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const url = `${protocol}//${window.location.host}/ws/vnc/${host}/${port}`;
+
+            const rfb = new RFB(document.getElementById('screen'), url, {
+                credentials: { password: password }
+            });
+
+            rfb.scaleViewport = true;
+            rfb.resizeSession = true;
+
+            rfb.addEventListener("connect", () => {
+                statusEl.innerText = `Connected to ${host}`;
+                setTimeout(() => statusEl.style.display = 'none', 2000);
+            });
+
+            rfb.addEventListener("disconnect", (e) => {
+                statusEl.style.display = 'block';
+                statusEl.innerText = `Disconnected: ${e.detail.clean ? 'Clean' : 'Error'}`;
+            });
+
+            rfb.addEventListener("securityfailure", (e) => {
+                statusEl.style.display = 'block';
+                statusEl.innerText = `Security Failure: ${e.detail.status}`;
+            });
+        }
+    </script>
+</body>
+</html>
