@@ -122,15 +122,26 @@ def get_minute_stats():
         )
         with conn:
             with conn.cursor() as cur:
-                # Aggregate samples from the last minute
+                # Calculate production deltas for each lane in the last minute
+                # looking back 5 minutes to find the previous reference sample.
                 cur.execute("""
                     SELECT 
                         SourceLine,
-                        SUM(nDetected) as nDetected,
-                        SUM(nPassed) as nPassed,
-                        SUM(nMarginal) as nMarginal,
-                        SUM(nRejected) as nRejected
-                    FROM vision_samples
+                        SUM(GREATEST(0, nDetected_delta)) as nDetected,
+                        SUM(GREATEST(0, nPassed_delta)) as nPassed,
+                        SUM(GREATEST(0, nMarginal_delta)) as nMarginal,
+                        SUM(GREATEST(0, nRejected_delta)) as nRejected
+                    FROM (
+                        SELECT 
+                            SourceLine,
+                            SyncUp,
+                            nDetected - COALESCE(LAG(nDetected) OVER (PARTITION BY SourceLine, LaneId ORDER BY SyncUp), nDetected) as nDetected_delta,
+                            nPassed - COALESCE(LAG(nPassed) OVER (PARTITION BY SourceLine, LaneId ORDER BY SyncUp), nPassed) as nPassed_delta,
+                            nMarginal - COALESCE(LAG(nMarginal) OVER (PARTITION BY SourceLine, LaneId ORDER BY SyncUp), nMarginal) as nMarginal_delta,
+                            nRejected - COALESCE(LAG(nRejected) OVER (PARTITION BY SourceLine, LaneId ORDER BY SyncUp), nRejected) as nRejected_delta
+                        FROM vision_samples
+                        WHERE SyncUp >= NOW() - INTERVAL 5 MINUTE
+                    ) t
                     WHERE SyncUp >= NOW() - INTERVAL 1 MINUTE
                     GROUP BY SourceLine
                 """)
