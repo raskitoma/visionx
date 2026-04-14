@@ -164,19 +164,26 @@ def get_minute_stats():
 @app.websocket("/ws/vnc/{host}/{port}")
 async def vnc_proxy(websocket: WebSocket, host: str, port: int):
     await websocket.accept()
+    logging.info(f"VNC Proxy: WebSocket accepted for {host}:{port}")
     try:
         # Connect to VNC server (TCP)
-        # Using a small timeout to avoid hanging
+        logging.info(f"VNC Proxy: Connecting to TCP {host}:{port}...")
         reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=5.0)
+        logging.info(f"VNC Proxy: TCP Connection established to {host}:{port}")
         
+        ws_to_tcp_bytes = 0
+        tcp_to_ws_bytes = 0
+
         async def forward_ws_to_tcp():
+            nonlocal ws_to_tcp_bytes
             try:
                 while True:
                     data = await websocket.receive_bytes()
+                    ws_to_tcp_bytes += len(data)
                     writer.write(data)
                     await writer.drain()
-            except Exception:
-                pass
+            except Exception as e:
+                logging.debug(f"VNC Proxy: WS -> TCP closed ({e})")
             finally:
                 if not writer.is_closing():
                     writer.close()
@@ -186,15 +193,19 @@ async def vnc_proxy(websocket: WebSocket, host: str, port: int):
                         pass
 
         async def forward_tcp_to_ws():
+            nonlocal tcp_to_ws_bytes
             try:
                 while True:
-                    data = await reader.read(8192) # Increased buffer for better performance
+                    data = await reader.read(16384) # Increased buffer
                     if not data:
+                        logging.info(f"VNC Proxy: TCP {host}:{port} closed by peer")
                         break
+                    tcp_to_ws_bytes += len(data)
                     await websocket.send_bytes(data)
-            except Exception:
-                pass
+            except Exception as e:
+                logging.debug(f"VNC Proxy: TCP -> WS closed ({e})")
             finally:
+                logging.info(f"VNC Proxy: Session summary for {host}:{port} - Sent: {tcp_to_ws_bytes} bytes, Received: {ws_to_tcp_bytes} bytes")
                 try:
                     await websocket.close()
                 except:
