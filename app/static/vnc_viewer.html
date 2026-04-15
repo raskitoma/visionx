@@ -29,14 +29,6 @@
 
         console.log("VNC Viewer starting...", { host, port, hasPassword: !!password });
 
-        if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-            statusEl.style.display = 'block';
-            statusEl.style.borderLeftColor = '#e74c3c';
-            statusEl.innerHTML = `<strong>Security Warning:</strong> noVNC requires a Secure Context (HTTPS or localhost).<br/>
-                                  Accessing via IP over HTTP will cause crashes.<br/>
-                                  <em>Please use localhost or set up TLS.</em>`;
-        }
-
         if (!host || !port) {
             statusEl.innerText = 'Error: Missing host/port';
             console.error('Missing configuration');
