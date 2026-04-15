@@ -201,7 +201,7 @@ h1,h2 { margin: 0; font-weight: 600; color: var(--text-bright); }
   border-color: rgba(248,113,113,0.3);
 }
 .line-card--stopped {
-  border-color: rgba(251,191,36,0.3);
+  border-color: rgba(248,113,113,0.3);
 }
 
 .line-card__header {
@@ -234,8 +234,8 @@ h1,h2 { margin: 0; font-weight: 600; color: var(--text-bright); }
   letter-spacing: 0.5px;
 }
 .running-tag--stopped {
-  color: var(--amber);
-  background: var(--amber-bg);
+  color: var(--red);
+  background: var(--red-bg);
 }
 
 .line-card__meta {

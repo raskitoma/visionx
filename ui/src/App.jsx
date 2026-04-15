@@ -385,15 +385,10 @@ function HourStatsCard({ lineName, stats }) {
 }
 
 function LineCard({ lineName, status, run, hourStats, serverTime, vncPort, vncPassword, onVncOpen }) {
-  const minutesThreshold = status?.minutes_last_update || 10;
   const hasError = status?.status === 'error';
-  const lastUpdateMs = run?.LastUpdate ? new Date(run.LastUpdate).getTime() : 0;
-  const serverNowMs = serverTime ? new Date(serverTime).getTime() : Date.now();
-  const diffMinutes = (serverNowMs - lastUpdateMs) / 60000;
   
-  const isStale = run?.LastUpdate && diffMinutes > minutesThreshold;
-  const isRunning = run && !run.EndTime && !isStale;
-  const isStopped = run && !run.EndTime && isStale;
+  const isRunning = status?.status === 'online';
+  const isStopped = status?.status !== 'online';
 
   const lineData = { lineName, status, run, hourStats, serverTime, isRunning };
 
