@@ -90,6 +90,19 @@
             rfb.addEventListener("desktopname", (e) => {
                 console.log("Desktop name:", e.detail.name);
             });
+
+            // Force close from parent message
+            window.addEventListener('message', (e) => {
+                if (e.data && e.data.type === 'DISCONNECT') {
+                    console.log("Parent requested forced disconnect...");
+                    try { rfb.disconnect(); } catch(err) {}
+                }
+            });
+
+            // Guarantee release on unload
+            window.addEventListener('beforeunload', () => {
+                try { rfb.disconnect(); } catch(err) {}
+            });
         }
     </script>
 </body>

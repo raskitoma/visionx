@@ -244,8 +244,17 @@ function VncModal({ vncConfig, lineData, onClose }) {
   const serverTime = lineData?.serverTime;
   const isRunning = run && !run.EndTime;
 
+  const handleClose = (e) => {
+    if (e) e.stopPropagation();
+    const iframe = document.getElementById('vnc-frame');
+    if (iframe && iframe.contentWindow) {
+      iframe.contentWindow.postMessage({ type: 'DISCONNECT' }, '*');
+    }
+    setTimeout(onClose, 100);
+  };
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={handleClose}>
       <div className="modal-content vnc-qc-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div className="modal-header__title">
@@ -266,7 +275,7 @@ function VncModal({ vncConfig, lineData, onClose }) {
               </div>
             </div>
           </div>
-          <button className="modal-close" onClick={onClose}>×</button>
+          <button className="modal-close" onClick={handleClose}>×</button>
         </div>
         
         <div className="modal-body">
@@ -322,6 +331,7 @@ function VncModal({ vncConfig, lineData, onClose }) {
           </div>
 
           <iframe 
+            id="vnc-frame"
             src={viewerUrl} 
             title="VNC Viewer"
             className="vnc-iframe"
