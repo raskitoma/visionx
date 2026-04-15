@@ -238,7 +238,7 @@ function VncModal({ vncConfig, lineData, onClose }) {
 
   // Metrics for the QC panel
   const run = lineData?.run;
-  const minuteStats = lineData?.minuteStats;
+  const hourStats = lineData?.hourStats;
   const serverTime = lineData?.serverTime;
   const isRunning = run && !run.EndTime;
 
@@ -291,19 +291,19 @@ function VncModal({ vncConfig, lineData, onClose }) {
               </div>
             </div>
 
-            {/* Minute Stats */}
-            {minuteStats && (
+            {/* Hour Stats */}
+            {hourStats && (
               <div className="qc-stats-group">
-                <div className="qc-group-label">L.MIN</div>
+                <div className="qc-group-label">L.HOUR</div>
                 <div className="qc-stat-card">
                   <span className="qc-label">DET / PASS</span>
                   <span className="qc-value">
-                    {num(minuteStats.nDetected)} / <span className="text-green">{num(minuteStats.nPassed)}</span>
+                    {num(hourStats.nDetected)} / <span className="text-green">{num(hourStats.nPassed)}</span>
                   </span>
                 </div>
                 <div className="qc-stat-card">
                   <span className="qc-label">REJECTED</span>
-                  <span className="qc-value text-red">{num(minuteStats.nRejected)}</span>
+                  <span className="qc-value text-red">{num(hourStats.nRejected)}</span>
                 </div>
               </div>
             )}
@@ -358,13 +358,13 @@ function VncCard({ host, port, password, lineData, onOpen }) {
   );
 }
 
-function MinuteStatsCard({ lineName, stats }) {
+function HourStatsCard({ lineName, stats }) {
   if (!stats) return null;
   
   return (
     <div className="minute-card">
       <div className="minute-card__header">
-        <h3>{lineName} <span className="minute-label">LAST MINUTE</span></h3>
+        <h3>{lineName} <span className="minute-label">LAST HOUR</span></h3>
       </div>
       <div className="minute-card__body">
         <div className="min-stat">
@@ -384,12 +384,12 @@ function MinuteStatsCard({ lineName, stats }) {
   );
 }
 
-function LineCard({ lineName, status, run, minuteStats, serverTime, vncPort, vncPassword, onVncOpen }) {
+function LineCard({ lineName, status, run, hourStats, serverTime, vncPort, vncPassword, onVncOpen }) {
   const isOnline = status?.status === 'online';
   const hasError = status?.status === 'error';
   const isRunning = run && !run.EndTime;
 
-  const lineData = { lineName, status, run, minuteStats, serverTime };
+  const lineData = { lineName, status, run, hourStats, serverTime };
 
   return (
     <div className="line-container">
@@ -415,7 +415,7 @@ function LineCard({ lineName, status, run, minuteStats, serverTime, vncPort, vnc
       </section>
       
       <div className="line-extra-row">
-        {minuteStats && <MinuteStatsCard lineName={lineName} stats={minuteStats} />}
+        {hourStats && <HourStatsCard lineName={lineName} stats={hourStats} />}
         <VncCard 
           host={status?.host} 
           port={vncPort} 
@@ -458,7 +458,7 @@ const REFRESH_INTERVAL = 60; // seconds
 export default function App() {
   const [status, setStatus] = useState({ lines: {}, last_sync: null });
   const [runs, setRuns] = useState({});
-  const [minuteStats, setMinuteStats] = useState({});
+  const [hourStats, setHourStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [activeVnc, setActiveVnc] = useState(null);
   const [error, setError] = useState(null);
@@ -471,10 +471,10 @@ export default function App() {
       fetch('/api/runs').then(r => r.json()),
       fetch('/api/minute_stats').then(r => r.json()),
     ])
-      .then(([s, ru, ms]) => {
+      .then(([s, ru, hs]) => {
         setStatus(s);
         setRuns(ru);
-        setMinuteStats(ms);
+        setHourStats(hs);
         setError(null);
         setLoading(false);
       })
@@ -545,7 +545,7 @@ export default function App() {
               lineName={line}
               status={status.lines[line]}
               run={runs[line]}
-              minuteStats={minuteStats[line]}
+              hourStats={hourStats[line]}
               serverTime={status.serverTime}
               vncPort={status.vnc_port}
               vncPassword={status.vnc_password}

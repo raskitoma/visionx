@@ -40,11 +40,14 @@
             statusEl.innerText = `Connecting to ${host}...`;
 
             const rfb = new RFB(document.getElementById('screen'), url, {
-                credentials: { password: password }
+                credentials: { password: password },
+                viewOnly: true,
+                focusOnClick: false
             });
 
             rfb.scaleViewport = true;
             rfb.resizeSession = true;
+            rfb.background = "#111";
 
             rfb.addEventListener("connect", () => {
                 console.log("RFB connected");

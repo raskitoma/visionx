@@ -7,7 +7,8 @@ import os
 import logging
 import pymysql
 from sync_engine import run_sync, sync_state
-from config import TARGET
+from config import TARGET, INFLUX
+from influxdb_client import InfluxDBClient
 
 logging.basicConfig(level=logging.INFO)
 
@@ -108,57 +109,48 @@ def get_runs():
 
 @app.get("/api/minute_stats")
 def get_minute_stats():
-    if not TARGET:
-        return JSONResponse({"error": "No target DB configured"}, status_code=503)
+    """
+    Returns production statistics for the last hour (60 minutes).
+    Fetches data from InfluxDB production_run measurement.
+    """
+    if not INFLUX['token']:
+        return JSONResponse({"error": "InfluxDB not configured"}, status_code=503)
+    
     try:
-        conn = pymysql.connect(
-            host=TARGET['host'],
-            port=TARGET['port'],
-            user=TARGET['user'],
-            password=TARGET['password'],
-            database=TARGET['database'],
-            cursorclass=pymysql.cursors.DictCursor,
-            charset='latin1',
-            connect_timeout=5,
-        )
-        with conn:
-            with conn.cursor() as cur:
-                # Calculate production deltas for each lane in the last minute
-                # looking back 5 minutes to find the previous reference sample.
-                cur.execute("""
-                    SELECT 
-                        SourceLine,
-                        SUM(GREATEST(0, nDetected_delta)) as nDetected,
-                        SUM(GREATEST(0, nPassed_delta)) as nPassed,
-                        SUM(GREATEST(0, nMarginal_delta)) as nMarginal,
-                        SUM(GREATEST(0, nRejected_delta)) as nRejected
-                    FROM (
-                        SELECT 
-                            SourceLine,
-                            SyncUp,
-                            nDetected - COALESCE(LAG(nDetected) OVER (PARTITION BY SourceLine, LaneId ORDER BY SyncUp), nDetected) as nDetected_delta,
-                            nPassed - COALESCE(LAG(nPassed) OVER (PARTITION BY SourceLine, LaneId ORDER BY SyncUp), nPassed) as nPassed_delta,
-                            nMarginal - COALESCE(LAG(nMarginal) OVER (PARTITION BY SourceLine, LaneId ORDER BY SyncUp), nMarginal) as nMarginal_delta,
-                            nRejected - COALESCE(LAG(nRejected) OVER (PARTITION BY SourceLine, LaneId ORDER BY SyncUp), nRejected) as nRejected_delta
-                        FROM vision_samples
-                        WHERE SyncUp >= NOW() - INTERVAL 5 MINUTE
-                    ) t
-                    WHERE SyncUp >= NOW() - INTERVAL 1 MINUTE
-                    GROUP BY SourceLine
-                """)
-                rows = cur.fetchall()
+        query = f'''
+        from(bucket: "{INFLUX['bucket']}")
+          |> range(start: -60m)
+          |> filter(fn: (r) => r["_measurement"] == "production_run")
+          |> filter(fn: (r) => r["_field"] == "nDetected" or r["_field"] == "nPassed" or r["_field"] == "nMarginal" or r["_field"] == "nRejected")
+          |> group(columns: ["line", "_field"])
+          |> difference()
+          |> filter(fn: (r) => r._value >= 0)
+          |> sum()
+        '''
         
         result = {}
-        for row in rows:
-            result[row['SourceLine']] = {
-                'nDetected': int(row['nDetected'] or 0),
-                'nPassed':   int(row['nPassed'] or 0),
-                'nMarginal': int(row['nMarginal'] or 0),
-                'nRejected': int(row['nRejected'] or 0),
-            }
+        with InfluxDBClient(url=INFLUX['url'], token=INFLUX['token'], org=INFLUX['org']) as client:
+            query_api = client.query_api()
+            tables = query_api.query(query=query)
+            
+            for table in tables:
+                for record in table.records:
+                    line = record.values.get("line")
+                    field = record.get_field()
+                    value = record.get_value()
+                    
+                    if line not in result:
+                        result[line] = {
+                            'nDetected': 0,
+                            'nPassed': 0,
+                            'nMarginal': 0,
+                            'nRejected': 0
+                        }
+                    result[line][field] = int(value or 0)
+        
         return result
     except Exception as e:
-        logging.error(f"Error fetching minute stats: {e}")
+        logging.error(f"Error fetching hour stats from InfluxDB: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
 
 @app.websocket("/ws/vnc/{host}/{port}")
