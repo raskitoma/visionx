@@ -126,6 +126,9 @@ def run_sync():
 
         src_conn = None
         try:
+            if not ping_ok:
+                raise Exception("Host offline (Ping failed)")
+                
             src_conn = get_source_connection(src)
             with src_conn.cursor() as cur:
                 is_first_sync = (last_run_id == 0)
