@@ -248,11 +248,9 @@ function VncModal({ vncConfig, lineData, onClose }) {
       <div className="modal-content vnc-qc-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div className="modal-header__title">
-            <div className="vnc-header-top">
-              <div className="vnc-label">VNC REMOTE</div>
-              <div className="vnc-header-line">
-                <h3>{lineData?.lineName || 'Machine'}: {host}</h3>
-              </div>
+            <div className="vnc-label">VNC REMOTE</div>
+            <div className="vnc-header-line">
+              <h3>{lineData?.lineName || 'Machine'}: {host}</h3>
             </div>
             <div className="vnc-header-meta">
               <div className="vnc-meta-item">
