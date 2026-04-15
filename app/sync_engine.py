@@ -160,10 +160,10 @@ def run_sync():
                             placeholders = ", ".join(["%s"] * len(vals))
                             col_names = ", ".join([f"`{c}`" for c in cols])
                             
-                            # ON DUPLICATE KEY UPDATE: exclude StartTime and created_at
-                            # LastUpdate ONLY if any content columns changed
-                            content_cols = [c for c in rd_filtered.keys() if c not in ['SyncUp', 'LastUpdate', 'created_at', 'StartTime']]
-                            change_cond = " OR ".join([f"NOT (`{c}` <=> VALUES(`{c}`))" for c in content_cols])
+                            # LastUpdate ONLY if any content columns changed (exclude timestamps/metadata)
+                            exclude_runs = ['SyncUp', 'LastUpdate', 'created_at', 'StartTime', 'EndTime', 'FirstTime', 'LastTime', 'SourceLine', 'RunId']
+                            content_cols = [c for c in rd_filtered.keys() if c not in exclude_runs and not c.startswith('origin_')]
+                            change_cond = " OR ".join([f"NOT (`{c}` <=> VALUES(`{c}`))" for c in content_cols]) if content_cols else "FALSE"
                             update_parts = [f"`LastUpdate` = IF({change_cond}, CURRENT_TIMESTAMP, `LastUpdate`)"]
                             
                             for c in cols:
@@ -212,9 +212,10 @@ def run_sync():
                             placeholders = ", ".join(["%s"] * len(vals))
                             col_names = ", ".join([f"`{c}`" for c in cols])
                             
-                            # ON DUPLICATE KEY UPDATE: exclude created_at
-                            content_cols = [c for c in ld_filtered.keys() if c not in ['SyncUp', 'LastUpdate', 'created_at']]
-                            change_cond = " OR ".join([f"NOT (`{c}` <=> VALUES(`{c}`))" for c in content_cols])
+                            # ON DUPLICATE KEY UPDATE: exclude metadata
+                            exclude_lanes = ['SyncUp', 'LastUpdate', 'created_at', 'FirstTime', 'LastTime', 'SourceLine', 'RunId', 'LaneId']
+                            content_cols = [c for c in ld_filtered.keys() if c not in exclude_lanes and not c.startswith('origin_')]
+                            change_cond = " OR ".join([f"NOT (`{c}` <=> VALUES(`{c}`))" for c in content_cols]) if content_cols else "FALSE"
                             update_parts = [f"`LastUpdate` = IF({change_cond}, CURRENT_TIMESTAMP, `LastUpdate`)"]
                             
                             for c in cols:
@@ -251,9 +252,10 @@ def run_sync():
                             placeholders = ", ".join(["%s"] * len(vals))
                             col_names = ", ".join([f"`{c}`" for c in cols])
                             
-                            # ON DUPLICATE KEY UPDATE: exclude created_at
-                            content_cols = [c for c in sd_filtered.keys() if c not in ['SyncUp', 'LastUpdate', 'created_at']]
-                            change_cond = " OR ".join([f"NOT (`{c}` <=> VALUES(`{c}`))" for c in content_cols])
+                            # ON DUPLICATE KEY UPDATE: exclude metadata
+                            exclude_samples = ['SyncUp', 'LastUpdate', 'created_at', 'SampTime', 'SourceLine', 'RunId', 'LaneId', 'SampNo']
+                            content_cols = [c for c in sd_filtered.keys() if c not in exclude_samples and not c.startswith('origin_')]
+                            change_cond = " OR ".join([f"NOT (`{c}` <=> VALUES(`{c}`))" for c in content_cols]) if content_cols else "FALSE"
                             update_parts = [f"`LastUpdate` = IF({change_cond}, CURRENT_TIMESTAMP, `LastUpdate`)"]
                             
                             for c in cols:
