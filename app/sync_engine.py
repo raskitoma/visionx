@@ -100,8 +100,17 @@ def run_sync():
 
     for src in SOURCES:
         line = src['line']
-        logger.info(f"Syncing source {line} at {src['host']}")
+        host = src['host']
+        logger.info(f"Syncing source {line} at {host}")
         
+        import subprocess
+        ping_ok = True
+        try:
+            res = subprocess.run(['ping', '-c', '1', '-W', '1', host], capture_output=True)
+            ping_ok = (res.returncode == 0)
+        except Exception:
+            ping_ok = False
+            
         try:
             with tgt_conn.cursor() as cur:
                 cur.execute("SELECT MAX(RunId) as max_run FROM vision_runs WHERE SourceLine = %s", (line,))
@@ -285,21 +294,23 @@ def run_sync():
                     write_to_influx(influx_points)
 
                 sync_state['lines'][line] = {
-                    "host": src['host'],
+                    "host": host,
                     "last_run_id": runs_data[-1]['RunId'] if runs_data else last_run_id,
                     "last_samp_no": samples_data[-1]['SampNo'] if samples_data else last_samp_no,
                     "status": "online",
                     "last_sync": current_sync_time.isoformat(),
-                    "error": None
+                    "error": None,
+                    "ping": ping_ok
                 }
 
         except Exception as e:
             logger.error(f"Error syncing {line}: {e}")
             sync_state['lines'][line] = {
-                "host": src['host'],
+                "host": host,
                 "status": "error",
                 "error": str(e),
-                "last_sync": current_sync_time.isoformat()
+                "last_sync": current_sync_time.isoformat(),
+                "ping": ping_ok
             }
         finally:
             if src_conn:

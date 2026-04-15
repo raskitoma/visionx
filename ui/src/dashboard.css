@@ -244,6 +244,22 @@ h1,h2 { margin: 0; font-weight: 600; color: var(--text-bright); }
   gap: 8px;
 }
 
+.ping-dot {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+.ping-dot--ok {
+  color: var(--green);
+  background: var(--green-bg);
+}
+.ping-dot--fail {
+  color: var(--red);
+  background: var(--red-bg);
+}
+
 .last-contact {
   font-size: 11px;
   color: var(--text-dim);

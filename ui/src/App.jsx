@@ -155,9 +155,10 @@ function ServerTimeClock({ serverTime }) {
   );
 }
 
-function StatusCircle({ status, isRunning }) {
+function StatusCircle({ status, isRunning, isStopped }) {
   let state = 'idle';
   if (status === 'error') state = 'error';
+  else if (isStopped) state = 'error';
   else if (isRunning) state = 'running';
   else if (status === 'online') state = 'online';
   else state = 'idle';
@@ -385,10 +386,15 @@ function HourStatsCard({ lineName, stats }) {
 }
 
 function LineCard({ lineName, status, run, hourStats, serverTime, vncPort, vncPassword, onVncOpen }) {
+  const minutesThreshold = status?.minutes_last_update || 10;
   const hasError = status?.status === 'error';
+  const lastUpdateMs = run?.LastUpdate ? new Date(run.LastUpdate).getTime() : 0;
+  const serverNowMs = serverTime ? new Date(serverTime).getTime() : Date.now();
+  const diffMinutes = (serverNowMs - lastUpdateMs) / 60000;
   
-  const isRunning = status?.status === 'online';
-  const isStopped = status?.status !== 'online';
+  const isStale = run?.LastUpdate && diffMinutes > minutesThreshold;
+  const isRunning = run && !run.EndTime && !isStale;
+  const isStopped = run && !run.EndTime && isStale;
 
   const lineData = { lineName, status, run, hourStats, serverTime, isRunning };
 
@@ -397,12 +403,17 @@ function LineCard({ lineName, status, run, hourStats, serverTime, vncPort, vncPa
       <section className={`line-card ${hasError ? 'line-card--error' : ''} ${isRunning ? 'line-card--running' : ''} ${isStopped ? 'line-card--stopped' : ''}`}>
         <header className="line-card__header">
           <div className="line-card__title">
-            <StatusCircle status={status?.status} isRunning={isRunning} />
+            <StatusCircle status={status?.status} isRunning={isRunning} isStopped={isStopped} />
             <h2>{lineName}</h2>
             {isRunning && <span className="running-tag">RUNNING</span>}
             {isStopped && <span className="running-tag running-tag--stopped">STOPPED</span>}
           </div>
           <div className="line-card__meta">
+            {status?.ping !== undefined && (
+              <span className={`ping-dot ${status.ping ? 'ping-dot--ok' : 'ping-dot--fail'}`} title={status.ping ? 'Host is pinging reliably' : 'Host is not responding to ping'}>
+                {status.ping ? 'PING OK' : 'PING FAIL'}
+              </span>
+            )}
             {status?.last_sync && (
               <span className="last-contact">Synced {fmt(status.last_sync)}</span>
             )}
@@ -469,6 +480,12 @@ export default function App() {
   const [error, setError] = useState(null);
   const [countdown, setCountdown] = useState(REFRESH_INTERVAL);
 
+  const fetchStatusOnly = useCallback(() => {
+    fetch('/api/status').then(r => r.json())
+      .then(s => setStatus(prev => ({ ...prev, ...s })))
+      .catch(err => console.error("Ping sync error:", err));
+  }, []);
+
   const fetchAll = useCallback(() => {
     setCountdown(REFRESH_INTERVAL);
     Promise.all([
@@ -495,6 +512,12 @@ export default function App() {
     const interval = setInterval(fetchAll, REFRESH_INTERVAL * 1000);
     return () => clearInterval(interval);
   }, [fetchAll]);
+
+  // Ping update 10-second interval
+  useEffect(() => {
+    const pingInterval = setInterval(fetchStatusOnly, 10000);
+    return () => clearInterval(pingInterval);
+  }, [fetchStatusOnly]);
 
   // Countdown tick
   useEffect(() => {

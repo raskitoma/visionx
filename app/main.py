@@ -17,9 +17,26 @@ app = FastAPI(title="VisionX Sync Tool")
 
 from datetime import datetime
 import pytz
+import subprocess
+from config import SOURCES
+
+def run_ping():
+    for src in SOURCES:
+        line = src['line']
+        host = src['host']
+        try:
+            res = subprocess.run(['ping', '-c', '1', '-W', '1', host], capture_output=True)
+            ping_ok = (res.returncode == 0)
+        except Exception:
+            ping_ok = False
+            
+        if line not in sync_state['lines']:
+            sync_state['lines'][line] = {}
+        sync_state['lines'][line]['ping'] = ping_ok
+
 scheduler = BackgroundScheduler()
 scheduler.add_job(run_sync, 'interval', minutes=1, max_instances=1, next_run_time=datetime.now())
-
+scheduler.add_job(run_ping, 'interval', seconds=10, max_instances=1, next_run_time=datetime.now())
 @app.on_event("startup")
 def start_scheduler():
     scheduler.start()
