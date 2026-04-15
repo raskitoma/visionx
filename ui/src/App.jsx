@@ -388,6 +388,7 @@ function HourStatsCard({ lineName, stats }) {
 
 function LineCard({ lineName, status, run, hourStats, serverTime, vncPort, vncPassword, onVncOpen }) {
   const minutesThreshold = status?.minutes_last_update || 10;
+  const hasError = status?.status === 'error';
   const lastUpdateMs = run?.LastUpdate ? new Date(run.LastUpdate).getTime() : 0;
   const serverNowMs = serverTime ? new Date(serverTime).getTime() : Date.now();
   const diffMinutes = (serverNowMs - lastUpdateMs) / 60000;
