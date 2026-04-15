@@ -5,6 +5,7 @@ import asyncio
 from apscheduler.schedulers.background import BackgroundScheduler
 import os
 import logging
+import socket
 import pymysql
 from sync_engine import run_sync, sync_state
 from config import TARGET, INFLUX
@@ -158,10 +159,31 @@ async def vnc_proxy(websocket: WebSocket, host: str, port: int):
     await websocket.accept()
     logging.info(f"VNC Proxy: WebSocket accepted for {host}:{port}")
     try:
-        # Connect to VNC server (TCP)
-        logging.info(f"VNC Proxy: Connecting to TCP {host}:{port}...")
-        reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=5.0)
-        logging.info(f"VNC Proxy: TCP Connection established to {host}:{port}")
+        # Connect to VNC server (TCP) with retries
+        max_retries = 3
+        reader, writer = None, None
+        
+        for attempt in range(1, max_retries + 1):
+            logging.info(f"VNC Proxy: Connecting to TCP {host}:{port} (Attempt {attempt}/{max_retries})...")
+            try:
+                reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=15.0)
+                logging.info(f"VNC Proxy: TCP Connection established to {host}:{port}")
+                break
+            except (asyncio.TimeoutError, socket.timeout):
+                logging.warning(f"VNC Proxy: Connection timeout on attempt {attempt}")
+                if attempt == max_retries:
+                    raise
+            except ConnectionRefusedError:
+                logging.error(f"VNC Proxy: Connection refused by {host}:{port}")
+                raise
+            except Exception as e:
+                logging.error(f"VNC Proxy: Unexpected error on attempt {attempt}: {type(e).__name__}: {e}")
+                if attempt == max_retries:
+                    raise
+                await asyncio.sleep(1)
+
+        if not reader or not writer:
+            raise Exception("Failed to establish TCP connection after retries")
         
         ws_to_tcp_bytes = 0
         tcp_to_ws_bytes = 0
@@ -175,7 +197,7 @@ async def vnc_proxy(websocket: WebSocket, host: str, port: int):
                     writer.write(data)
                     await writer.drain()
             except Exception as e:
-                logging.debug(f"VNC Proxy: WS -> TCP closed ({e})")
+                logging.debug(f"VNC Proxy: WS -> TCP closed ({type(e).__name__})")
             finally:
                 if not writer.is_closing():
                     writer.close()
@@ -195,7 +217,7 @@ async def vnc_proxy(websocket: WebSocket, host: str, port: int):
                     tcp_to_ws_bytes += len(data)
                     await websocket.send_bytes(data)
             except Exception as e:
-                logging.debug(f"VNC Proxy: TCP -> WS closed ({e})")
+                logging.debug(f"VNC Proxy: TCP -> WS closed ({type(e).__name__})")
             finally:
                 logging.info(f"VNC Proxy: Session summary for {host}:{port} - Sent: {tcp_to_ws_bytes} bytes, Received: {ws_to_tcp_bytes} bytes")
                 try:
@@ -207,7 +229,8 @@ async def vnc_proxy(websocket: WebSocket, host: str, port: int):
         await asyncio.gather(forward_ws_to_tcp(), forward_tcp_to_ws())
         
     except Exception as e:
-        logging.error(f"VNC Proxy Connection Error to {host}:{port}: {e}")
+        error_msg = f"{type(e).__name__}: {str(e)}" if str(e) else type(e).__name__
+        logging.error(f"VNC Proxy Final Failure to {host}:{port} - {error_msg}")
         try:
             await websocket.close(code=1006)
         except:

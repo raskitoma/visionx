@@ -58,7 +58,10 @@
             rfb.addEventListener("disconnect", (e) => {
                 console.log("RFB disconnected", e.detail);
                 statusEl.style.display = 'block';
-                statusEl.innerText = `Disconnected: ${e.detail.clean ? 'Clean' : 'Error'}`;
+                const reason = e.detail.clean ? 'Clean Disconnect' : 'Connection Error';
+                statusEl.innerHTML = `<strong>${reason}</strong><br/>
+                                      The proxy could not reach the machine.<br/>
+                                      <em>Check if VNC is running/allowed on port ${port}.</em>`;
                 if (!e.detail.clean) {
                     console.error("Disconnection error:", e.detail);
                 }
