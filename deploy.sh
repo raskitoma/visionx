@@ -307,10 +307,10 @@ main_menu() {
         echo -e "\n${GREEN}=== VisionX Management Tool ===${NC}"
         echo "1) Configure"
         echo "2) Launch"
-        echo "3) Update (this should remove and force recreate and build)"
+        echo "3) Update"
         echo "4) Stop"
         echo "5) Remove"
-        echo "6) View Logs (Follow)"
+        echo "6) View Logs"
         echo "q) Exit"
         read -p "Selection: " choice
         
