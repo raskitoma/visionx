@@ -42,6 +42,7 @@ INFLUX_HOST="$INFLUX_HOST"
 INFLUX_TOKEN="$INFLUX_TOKEN"
 INFLUX_ORG="$INFLUX_ORG"
 INFLUX_BUCKET="$INFLUX_BUCKET"
+MINUTES_LAST_UPDATE="${MINUTES_LAST_UPDATE:-10}"
 EOF
     log_success "Configuration saved."
 }
@@ -114,6 +115,8 @@ configure_misc() {
     TZ=${i_tz:-"America/New_York"}
     read -p "Records Limit per Sync [100]: " i_limit
     RECORDS_LIMIT=${i_limit:-100}
+    read -p "Inactivity timeout (minutes) [10]: " i_timeout
+    MINUTES_LAST_UPDATE=${i_timeout:-10}
 }
 
 full_configure() {

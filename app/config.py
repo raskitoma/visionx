@@ -71,3 +71,4 @@ INFLUX = {
 
 VNC_PORT = os.getenv("VNC_PORT", "5900")
 VNC_PASSWORD = os.getenv("VNC_PASSWORD", "1043")
+MINUTES_LAST_UPDATE = int(os.getenv("MINUTES_LAST_UPDATE", "10"))

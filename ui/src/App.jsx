@@ -160,6 +160,7 @@ function StatusCircle({ status, isRunning }) {
   if (status === 'error') state = 'error';
   else if (isRunning) state = 'running';
   else if (status === 'online') state = 'online';
+  else state = 'idle';
 
   return (
     <div className={`status-circle status-circle--${state}`} title={`Status: ${state}`}>
@@ -168,9 +169,9 @@ function StatusCircle({ status, isRunning }) {
   );
 }
 
-function RunInfoStrip({ run, serverTime }) {
+function RunInfoStrip({ run, serverTime, isRunning }) {
   if (!run) return <p className="no-run">No active run data.</p>;
-  const isRunning = !run.EndTime;
+  const isActuallyStopped = !run.EndTime && !isRunning;
 
   return (
     <div className="run-strip">
@@ -247,29 +248,30 @@ function VncModal({ vncConfig, lineData, onClose }) {
       <div className="modal-content vnc-qc-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div className="modal-header__title">
-            <div className="vnc-label">VNC REMOTE</div>
-            <h3>{lineData?.lineName || 'Machine'}: {host}</h3>
+            <div className="vnc-header-top">
+              <div className="vnc-label">VNC REMOTE</div>
+              <div className="vnc-header-line">
+                <h3>{lineData?.lineName || 'Machine'}: {host}</h3>
+              </div>
+            </div>
+            <div className="vnc-header-meta">
+              <div className="vnc-meta-item">
+                <span className="meta-label">RUN</span>
+                <span className="meta-value">{run?.RunId || '—'}</span>
+              </div>
+              <div className="vnc-meta-item vnc-meta-item--accent">
+                <span className="meta-label">ELAPSED</span>
+                <span className="meta-value">
+                  <ElapsedTimer startTime={run?.StartTime} serverTime={serverTime} isRunning={isRunning} />
+                </span>
+              </div>
+            </div>
           </div>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
         
         <div className="modal-body">
           <div className="qc-stats-bar">
-            {/* Run Identity & Timer */}
-            <div className="qc-stats-group">
-              <div className="qc-group-label">RUN</div>
-              <div className="qc-stat-card">
-                <span className="qc-label">RUN ID</span>
-                <span className="qc-value">{run?.RunId || '—'}</span>
-              </div>
-              <div className="qc-stat-card qc-stat-card--accent">
-                <span className="qc-label">ELAPSED</span>
-                <div className="qc-value">
-                  <ElapsedTimer startTime={run?.StartTime} serverTime={serverTime} isRunning={isRunning} />
-                </div>
-              </div>
-            </div>
-
             {/* Cumulative Stats */}
             <div className="qc-stats-group">
               <div className="qc-group-label">STATS</div>
@@ -385,20 +387,26 @@ function HourStatsCard({ lineName, stats }) {
 }
 
 function LineCard({ lineName, status, run, hourStats, serverTime, vncPort, vncPassword, onVncOpen }) {
-  const isOnline = status?.status === 'online';
-  const hasError = status?.status === 'error';
-  const isRunning = run && !run.EndTime;
+  const minutesThreshold = status?.minutes_last_update || 10;
+  const lastUpdateMs = run?.LastUpdate ? new Date(run.LastUpdate).getTime() : 0;
+  const serverNowMs = serverTime ? new Date(serverTime).getTime() : Date.now();
+  const diffMinutes = (serverNowMs - lastUpdateMs) / 60000;
+  
+  const isStale = run?.LastUpdate && diffMinutes > minutesThreshold;
+  const isRunning = run && !run.EndTime && !isStale;
+  const isStopped = run && !run.EndTime && isStale;
 
-  const lineData = { lineName, status, run, hourStats, serverTime };
+  const lineData = { lineName, status, run, hourStats, serverTime, isRunning };
 
   return (
     <div className="line-container">
-      <section className={`line-card ${hasError ? 'line-card--error' : ''} ${isRunning ? 'line-card--running' : ''}`}>
+      <section className={`line-card ${hasError ? 'line-card--error' : ''} ${isRunning ? 'line-card--running' : ''} ${isStopped ? 'line-card--stopped' : ''}`}>
         <header className="line-card__header">
           <div className="line-card__title">
             <StatusCircle status={status?.status} isRunning={isRunning} />
             <h2>{lineName}</h2>
             {isRunning && <span className="running-tag">RUNNING</span>}
+            {isStopped && <span className="running-tag running-tag--stopped">STOPPED</span>}
           </div>
           <div className="line-card__meta">
             {status?.last_sync && (
@@ -408,10 +416,13 @@ function LineCard({ lineName, status, run, hourStats, serverTime, vncPort, vncPa
         </header>
 
         {hasError && (
-          <div className="error-banner">⚠ {status.error || 'Sync Error'}</div>
+          <div className="error-banner">
+            <span className="error-label">Error Message</span>
+            <span className="error-message">{status.error || 'Sync Error'}</span>
+          </div>
         )}
 
-        <RunInfoStrip run={run} serverTime={serverTime} />
+        <RunInfoStrip run={run} serverTime={serverTime} isRunning={isRunning} />
       </section>
       
       <div className="line-extra-row">
@@ -532,7 +543,12 @@ export default function App() {
 
       <main className="dashboard-main">
         {loading && <div className="spinner-wrap"><div className="spinner" /></div>}
-        {error && <div className="global-error">⚠ API error: {error}</div>}
+        {error && (
+          <div className="global-error">
+            <span className="error-label" style={{ borderRadius: '4px' }}>API ERROR</span>
+            <span className="error-message">{error}</span>
+          </div>
+        )}
         {!loading && allLines.length === 0 && (
           <div className="empty-state">
             <p>⏳ Initial sync in progress — waiting for first cycle…</p>

@@ -4,7 +4,7 @@ import pytz
 from datetime import datetime
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
-from config import SOURCES, TARGET, INFLUX, RECORDS_LIMIT, VNC_PORT, VNC_PASSWORD
+from config import SOURCES, TARGET, INFLUX, RECORDS_LIMIT, VNC_PORT, VNC_PASSWORD, MINUTES_LAST_UPDATE
 
 import os
 
@@ -25,6 +25,7 @@ sync_state = {
     "lines": {},
     "vnc_port": VNC_PORT,
     "vnc_password": VNC_PASSWORD,
+    "minutes_last_update": MINUTES_LAST_UPDATE,
     "last_sync": None
 }
 

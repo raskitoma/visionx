@@ -200,6 +200,9 @@ h1,h2 { margin: 0; font-weight: 600; color: var(--text-bright); }
 .line-card--error {
   border-color: rgba(248,113,113,0.3);
 }
+.line-card--stopped {
+  border-color: rgba(251,191,36,0.3);
+}
 
 .line-card__header {
   display: flex;
@@ -229,6 +232,10 @@ h1,h2 { margin: 0; font-weight: 600; color: var(--text-bright); }
   padding: 2px 6px;
   border-radius: 4px;
   letter-spacing: 0.5px;
+}
+.running-tag--stopped {
+  color: var(--amber);
+  background: var(--amber-bg);
 }
 
 .line-card__meta {
@@ -410,9 +417,43 @@ h1,h2 { margin: 0; font-weight: 600; color: var(--text-bright); }
   color: var(--red);
   border: 1px solid rgba(248,113,113,0.2);
   border-radius: var(--radius-sm);
-  padding: 12px 16px;
-  margin-bottom: 20px;
+  padding: 14px 20px;
+  margin-bottom: 24px;
   font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.error-banner {
+  background: rgba(248, 113, 113, 0.08);
+  border-bottom: 1px solid rgba(248, 113, 113, 0.2);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--red);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.error-label {
+  font-weight: 800;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  background: var(--red);
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-right: 4px;
+}
+
+.error-message {
+  line-height: 1.4;
 }
 
 .empty-state {
@@ -638,9 +679,54 @@ h1,h2 { margin: 0; font-weight: 600; color: var(--text-bright); }
 
 .modal-header h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: 16px;
   color: var(--text-bright);
   letter-spacing: 0.5px;
+}
+
+.vnc-header-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.vnc-header-meta {
+  display: flex;
+  gap: 20px;
+}
+
+.vnc-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 10px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.vnc-meta-item--accent {
+  border-color: rgba(34, 211, 238, 0.3);
+  background: rgba(34, 211, 238, 0.05);
+}
+
+.meta-label {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+}
+
+.meta-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-bright);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.vnc-meta-item--accent .meta-value {
+  color: var(--cyan);
 }
 
 .modal-close {
