@@ -128,42 +128,52 @@ full_configure() {
     save_env
 }
 
+show_config() {
+    if [ -f "$ENV_FILE" ]; then
+        echo -e "\n${BLUE}--- Current Configuration ---${NC}"
+        cat "$ENV_FILE"
+    else
+        log_warn "No .env file found. Configuration is empty."
+    fi
+}
+
 cmd_configure() {
     if [ ! -f "$ENV_FILE" ]; then
         full_configure
     else
-        echo -e "\n${BLUE}Management Menu:${NC}"
-        echo "1) Full Re-configuration"
-        echo "2) Add a New Source"
-        echo "3) Remove a Source"
-        echo "4) Change Target DB"
-        echo "5) Change InfluxDB Settings"
-        echo "6) Create Tables in Target DB"
-        echo "7) Back to Main Menu"
-        read -p "Selection: " sub_choice
-        
-        case $sub_choice in
-            1) full_configure ;;
-            2) 
-                load_env
-                local old_sources="$SOURCE_DBS"
-                configure_sources # This will reset sources in the loop, wait.
-                # Actually, I should make configure_sources append or handle this better.
-                # Let's refine configure_sources to accept an existing list.
-                append_sources "$old_sources"
-                save_env
-                ;;
-            3)
-                load_env
-                remove_source
-                save_env
-                ;;
-            4) configure_target; save_env ;;
-            5) configure_influx; save_env ;;
-            6) cmd_init_db ;;
-            7) return ;;
-            *) log_error "Invalid selection" ;;
-        esac
+        while true; do
+            echo -e "\n${BLUE}Configuration Menu:${NC}"
+            echo "1) Show current config"
+            echo "2) Add New Source"
+            echo "3) Remove Source"
+            echo "4) Change Target DB"
+            echo "5) Change InfluxDB Settings"
+            echo "6) Create/Recreate Target Tables in TargetDB"
+            echo "7) Full Re-Configuration"
+            echo "8) Back to Main Menu"
+            read -p "Selection: " sub_choice
+            
+            case $sub_choice in
+                1) show_config ;;
+                2) 
+                    load_env
+                    local old_sources="$SOURCE_DBS"
+                    append_sources "$old_sources"
+                    save_env
+                    ;;
+                3)
+                    load_env
+                    remove_source
+                    save_env
+                    ;;
+                4) configure_target; save_env ;;
+                5) configure_influx; save_env ;;
+                6) cmd_init_db ;;
+                7) full_configure ;;
+                8) return ;;
+                *) log_error "Invalid selection" ;;
+            esac
+        done
     fi
 }
 
@@ -281,8 +291,10 @@ cmd_update() {
     if [ -d ".git" ]; then
         git pull
     fi
+    log_info "Removing existing containers..."
+    docker-compose down
     log_info "Rebuilding and restarting..."
-    docker-compose up -d --build
+    docker-compose up -d --build --force-recreate
 }
 
 cmd_logs() {
@@ -293,25 +305,23 @@ cmd_logs() {
 main_menu() {
     while true; do
         echo -e "\n${GREEN}=== VisionX Management Tool ===${NC}"
-        echo "1) Configure (Add/Remove Sources, Settings)"
-        echo "2) Launch (Start system)"
-        echo "3) Stop (Stop services)"
-        echo "4) Remove (Clean up containers)"
-        echo "5) Create Tables (Target DB)"
+        echo "1) Configure"
+        echo "2) Launch"
+        echo "3) Update (this should remove and force recreate and build)"
+        echo "4) Stop"
+        echo "5) Remove"
         echo "6) View Logs (Follow)"
-        echo "7) Update (Pull latest and restart)"
-        echo "8) Exit"
+        echo "q) Exit"
         read -p "Selection: " choice
         
         case $choice in
             1) cmd_configure ;;
             2) cmd_launch ;;
-            3) cmd_stop ;;
-            4) cmd_remove ;;
-            5) cmd_init_db ;;
+            3) cmd_update ;;
+            4) cmd_stop ;;
+            5) cmd_remove ;;
             6) cmd_logs ;;
-            7) cmd_update ;;
-            8) exit 0 ;;
+            q|Q) exit 0 ;;
             *) log_error "Invalid selection" ;;
         esac
     done
