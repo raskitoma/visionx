@@ -27,6 +27,11 @@
         const password = params.get('password');
         const statusEl = document.getElementById('status');
 
+        const MAX_RETRIES = 5;
+        const RETRY_DELAY_MS = 5000;
+        let rfb = null;
+        let intentionallyDisconnected = false;
+
         console.log("VNC Viewer starting...", { host, port, hasPassword: !!password });
 
         if (!host || !port) {
@@ -36,72 +41,122 @@
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const url = `${protocol}//${window.location.host}/ws/vnc/${host}/${port}`;
             
-            console.log("Connecting to:", url);
-            statusEl.innerText = `Connecting to ${host}...`;
-
-            const rfb = new RFB(document.getElementById('screen'), url, {
-                credentials: { password: password },
-                viewOnly: true,
-                focusOnClick: false
-            });
-
-            rfb.scaleViewport = true;
-            rfb.resizeSession = true;
-            rfb.background = "#111";
-
-            rfb.addEventListener("connect", () => {
-                console.log("RFB connected");
-                statusEl.innerText = `Connected to ${host}`;
-                setTimeout(() => statusEl.style.display = 'none', 3000);
-            });
-
-            rfb.addEventListener("disconnect", (e) => {
-                console.log("RFB disconnected", e.detail);
-                statusEl.style.display = 'block';
-                const reason = e.detail.clean ? 'Clean Disconnect' : 'Connection Error';
-                statusEl.innerHTML = `<strong>${reason}</strong><br/>
-                                      The proxy could not reach the machine.<br/>
-                                      <em>Check if VNC is running/allowed on port ${port}.</em>`;
-                if (!e.detail.clean) {
-                    console.error("Disconnection error:", e.detail);
+            function connectVNC(attempt = 1) {
+                console.log(`Connecting to: ${url} (Attempt ${attempt})`);
+                if (attempt === 1) {
+                    statusEl.innerText = `Connecting to ${host}...`;
+                } else {
+                    statusEl.innerText = `Retrying connection... (Attempt ${attempt} of ${MAX_RETRIES})`;
+                    statusEl.style.borderLeftColor = '#f39c12'; // Orange
                 }
-            });
-
-            rfb.addEventListener("credentialsrequired", () => {
-                console.log("RFB Credentials Required");
                 statusEl.style.display = 'block';
-                statusEl.innerText = "Password Required";
-            });
 
-            rfb.addEventListener("securityfailure", (e) => {
-                console.error("RFB Security Failure:", e.detail);
-                statusEl.style.display = 'block';
-                statusEl.innerText = `Security Failure: ${e.detail.status}`;
-            });
+                rfb = new RFB(document.getElementById('screen'), url, {
+                    credentials: { password: password },
+                    viewOnly: true,
+                    focusOnClick: false
+                });
 
-            rfb.addEventListener("clipboard", (e) => {
-                console.log("RFB clipboard:", e.detail.text);
-            });
+                rfb.scaleViewport = true;
+                rfb.resizeSession = true;
+                rfb.background = "#111";
 
-            rfb.addEventListener("bell", () => {
-                console.log("RFB bell");
-            });
+                const connectionTimeout = setTimeout(() => {
+                    // novnc state check
+                    if (rfb && rfb._rfbConnectionState !== 'connected') {
+                        console.error("Connection timeout");
+                        try { rfb.disconnect(); } catch(err) {}
+                    }
+                }, 10000); // 10 seconds timeout
 
-            rfb.addEventListener("desktopname", (e) => {
-                console.log("Desktop name:", e.detail.name);
-            });
+                rfb.addEventListener("connect", () => {
+                    clearTimeout(connectionTimeout);
+                    console.log("RFB connected");
+                    statusEl.innerText = `Connected to ${host}`;
+                    statusEl.style.borderLeftColor = '#2ecc71'; // Green
+                    setTimeout(() => statusEl.style.display = 'none', 3000);
+                });
+
+                rfb.addEventListener("disconnect", (e) => {
+                    clearTimeout(connectionTimeout);
+                    console.log("RFB disconnected", e.detail);
+                    
+                    if (intentionallyDisconnected) {
+                        return;
+                    }
+
+                    statusEl.style.display = 'block';
+                    
+                    if (attempt < MAX_RETRIES) {
+                        statusEl.innerHTML = `<strong>Connection Error</strong><br/>
+                                              Failed to connect. Retrying in ${RETRY_DELAY_MS/1000} seconds...<br/>
+                                              <em>(Attempt ${attempt} of ${MAX_RETRIES})</em>`;
+                        statusEl.style.borderLeftColor = '#e74c3c'; // Red
+                        
+                        setTimeout(() => {
+                            if (!intentionallyDisconnected) {
+                                connectVNC(attempt + 1);
+                            }
+                        }, RETRY_DELAY_MS);
+                    } else {
+                        const reason = e.detail.clean ? 'Clean Disconnect' : 'Connection Error';
+                        statusEl.innerHTML = `<strong>${reason}</strong><br/>
+                                              The proxy could not reach the machine after multiple attempts.<br/>
+                                              <em>Check if VNC is running/allowed on port ${port}.</em>`;
+                        statusEl.style.borderLeftColor = '#e74c3c'; // Red
+                    }
+
+                    if (!e.detail.clean) {
+                        console.error("Disconnection error:", e.detail);
+                    }
+                });
+
+                rfb.addEventListener("credentialsrequired", () => {
+                    clearTimeout(connectionTimeout);
+                    console.log("RFB Credentials Required");
+                    statusEl.style.display = 'block';
+                    statusEl.innerText = "Password Required";
+                    statusEl.style.borderLeftColor = '#f1c40f'; // Yellow
+                });
+
+                rfb.addEventListener("securityfailure", (e) => {
+                    clearTimeout(connectionTimeout);
+                    console.error("RFB Security Failure:", e.detail);
+                    statusEl.style.display = 'block';
+                    statusEl.innerText = `Security Failure: ${e.detail.status}`;
+                    statusEl.style.borderLeftColor = '#e74c3c'; // Red
+                    intentionallyDisconnected = true;
+                });
+
+                rfb.addEventListener("clipboard", (e) => {
+                    console.log("RFB clipboard:", e.detail.text);
+                });
+
+                rfb.addEventListener("bell", () => {
+                    console.log("RFB bell");
+                });
+
+                rfb.addEventListener("desktopname", (e) => {
+                    console.log("Desktop name:", e.detail.name);
+                });
+            }
+
+            // Start first attempt
+            connectVNC(1);
 
             // Force close from parent message
             window.addEventListener('message', (e) => {
                 if (e.data && e.data.type === 'DISCONNECT') {
                     console.log("Parent requested forced disconnect...");
-                    try { rfb.disconnect(); } catch(err) {}
+                    intentionallyDisconnected = true;
+                    try { if (rfb) rfb.disconnect(); } catch(err) {}
                 }
             });
 
             // Guarantee release on unload
             window.addEventListener('beforeunload', () => {
-                try { rfb.disconnect(); } catch(err) {}
+                intentionallyDisconnected = true;
+                try { if (rfb) rfb.disconnect(); } catch(err) {}
             });
         }
     </script>
