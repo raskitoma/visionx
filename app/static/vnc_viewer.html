@@ -23,8 +23,8 @@
 
         const params = new URLSearchParams(window.location.search);
         const host = params.get('host');
-        const port = params.get('port');
-        const password = params.get('password');
+        const port = params.get('port') || '5900';
+        const password = params.get('password') || '1043';
         const statusEl = document.getElementById('status');
 
         const MAX_RETRIES = 5;
