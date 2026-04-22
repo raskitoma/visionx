@@ -343,7 +343,8 @@ function VncModal({ vncConfig, lineData, onClose }) {
 }
 
 function VncCard({ lineName, host, port, password, lineData, onOpen }) {
-  if (!host) return null;
+  const vncHost = host || lineName;
+  if (!vncHost) return null;
   
   return (
     <div className="vnc-card">
@@ -353,15 +354,18 @@ function VncCard({ lineName, host, port, password, lineData, onOpen }) {
       <div className="vnc-card__body">
         <div className="vnc-info">
           <div className="vnc-field">
-            <span className="vnc-field-label">IP</span>
-            <span className="vnc-field-value">{host}</span>
+            <span className="vnc-field-label">IP / HOST</span>
+            <span className="vnc-field-value">{host || lineName}</span>
           </div>
           <div className="vnc-field">
             <span className="vnc-field-label">PORT</span>
-            <span className="vnc-field-value">{port}</span>
+            <span className="vnc-field-value">{port || '5900'}</span>
           </div>
         </div>
-        <button onClick={() => onOpen({ vncConfig: { host: lineName || host, port, password }, lineData })} className="vnc-link-btn">
+        <button 
+          onClick={() => onOpen({ vncConfig: { host: vncHost, port: port || '5900', password: password || '1043' }, lineData })} 
+          className="vnc-link-btn"
+        >
           OPEN SCREEN
         </button>
       </div>
