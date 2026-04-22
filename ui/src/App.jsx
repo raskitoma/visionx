@@ -260,7 +260,7 @@ function VncModal({ vncConfig, lineData, onClose }) {
           <div className="modal-header__title">
             <div className="vnc-label">VNC REMOTE</div>
             <div className="vnc-header-line">
-              <h3>{lineData?.lineName || 'Machine'}: {host}</h3>
+              <h3>{lineData?.lineName || 'Machine'}{host !== lineData?.lineName ? ` (${host})` : ''}</h3>
             </div>
             <div className="vnc-header-meta">
               <div className="vnc-meta-item">
@@ -342,7 +342,7 @@ function VncModal({ vncConfig, lineData, onClose }) {
   );
 }
 
-function VncCard({ host, port, password, lineData, onOpen }) {
+function VncCard({ lineName, host, port, password, lineData, onOpen }) {
   if (!host) return null;
   
   return (
@@ -361,7 +361,7 @@ function VncCard({ host, port, password, lineData, onOpen }) {
             <span className="vnc-field-value">{port}</span>
           </div>
         </div>
-        <button onClick={() => onOpen({ vncConfig: { host, port, password }, lineData })} className="vnc-link-btn">
+        <button onClick={() => onOpen({ vncConfig: { host: lineName || host, port, password }, lineData })} className="vnc-link-btn">
           OPEN SCREEN
         </button>
       </div>
@@ -443,6 +443,7 @@ function LineCard({ lineName, status, run, hourStats, serverTime, vncPort, vncPa
       <div className="line-extra-row">
         {hourStats && <HourStatsCard lineName={lineName} stats={hourStats} />}
         <VncCard 
+          lineName={lineName}
           host={status?.host} 
           port={vncPort} 
           password={vncPassword} 

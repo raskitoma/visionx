@@ -173,18 +173,26 @@ def get_minute_stats():
 
 @app.websocket("/ws/vnc/{host}/{port}")
 async def vnc_proxy(websocket: WebSocket, host: str, port: int):
+    # Translate line name to IP if needed
+    actual_host = host
+    for src in SOURCES:
+        if src['line'] == host:
+            actual_host = src['host']
+            logging.info(f"VNC Proxy: Translating line name '{host}' to IP '{actual_host}'")
+            break
+
     await websocket.accept()
-    logging.info(f"VNC Proxy: WebSocket accepted for {host}:{port}")
+    logging.info(f"VNC Proxy: WebSocket accepted for {host}:{port} (Actual: {actual_host})")
     try:
         # Connect to VNC server (TCP) with retries
         max_retries = 3
         reader, writer = None, None
         
         for attempt in range(1, max_retries + 1):
-            logging.info(f"VNC Proxy: Connecting to TCP {host}:{port} (Attempt {attempt}/{max_retries})...")
+            logging.info(f"VNC Proxy: Connecting to TCP {actual_host}:{port} (Attempt {attempt}/{max_retries})...")
             try:
-                reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=15.0)
-                logging.info(f"VNC Proxy: TCP Connection established to {host}:{port}")
+                reader, writer = await asyncio.wait_for(asyncio.open_connection(actual_host, port), timeout=15.0)
+                logging.info(f"VNC Proxy: TCP Connection established to {actual_host}:{port}")
                 break
             except (asyncio.TimeoutError, socket.timeout):
                 logging.warning(f"VNC Proxy: Connection timeout on attempt {attempt}")
