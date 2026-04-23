@@ -140,9 +140,9 @@ def get_minute_stats():
           |> range(start: -60m)
           |> filter(fn: (r) => r["_measurement"] == "production_run")
           |> filter(fn: (r) => r["_field"] == "nDetected" or r["_field"] == "nPassed" or r["_field"] == "nMarginal" or r["_field"] == "nRejected")
+          |> group(columns: ["line", "RunId", "_field"])
+          |> spread()
           |> group(columns: ["line", "_field"])
-          |> difference()
-          |> filter(fn: (r) => r._value >= 0)
           |> sum()
         '''
         

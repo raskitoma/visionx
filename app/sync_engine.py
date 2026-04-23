@@ -120,10 +120,10 @@ def run_sync():
         'samples': get_table_columns(tgt_conn, 'vision_samples')
     }
 
-    for src in SOURCES:
+    for src in sorted(SOURCES, key=lambda x: x['line']):
         line = src['line']
         host = src['host']
-        logger.info(f"-------==== Review {line} ({host}) =====---")
+        logger.info(f"\033[96m-------==== Review {line} ({host}) =====---\033[0m")
         
         # Ensure target connection is still alive
         try:
