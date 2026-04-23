@@ -386,16 +386,20 @@ function VncCard({ lineName, host, port, password, lineData, onOpen }) {
 function HourStatsCard({ lineName, stats }) {
   if (!stats) return null;
   return (
-    <div className="hour-stats-card">
-      <div className="hour-stats-title">LAST HOUR</div>
-      <div className="hour-stats-grid">
+    <div className="hour-card">
+      <div className="hour-card__header">
+        <span className="hour-label">LAST HOUR</span>
+      </div>
+      <div className="hour-card__body">
         <div className="hs-item">
-          <div className="hs-val">{num(stats.nDetected)}</div>
-          <div className="hs-lab">DETECTED</div>
+          <span className="hs-label">DETECTED</span>
+          <span className="hs-value">{num(stats.nDetected)}</span>
         </div>
         <div className="hs-item">
-          <div className="hs-val hs-val--rejected">{num(stats.nRejected)}</div>
-          <div className="hs-lab">REJECTED ({rejectPct(stats.nRejected, stats.nDetected)})</div>
+          <span className="hs-label">REJECTED</span>
+          <span className="hs-value hs-value--rejected">
+            {num(stats.nRejected)} <span className="hs-pct">({rejectPct(stats.nRejected, stats.nDetected)})</span>
+          </span>
         </div>
       </div>
     </div>

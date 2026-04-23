@@ -33,39 +33,72 @@
   --shadow-glow: 0 0 0 1px var(--accent-glow), 0 4px 24px rgba(0,0,0,0.5);
 }
 
-.hs-item {
+.hour-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-width: 350px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+}
+
+.hour-card__header {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.hs-val {
-  font-size: 1.2rem;
+.hour-label {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--accent);
+  background: var(--accent-glow);
+  padding: 1px 5px;
+  border-radius: 3px;
+  width: fit-content;
+}
+
+.hour-card__body {
+  display: flex;
+  gap: 24px;
+  flex: 1;
+}
+
+.hs-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hs-label {
+  font-size: 8px;
   font-weight: 700;
-  color: var(--text-primary);
-}
-
-.hs-val--rejected {
-  color: var(--status-error);
-}
-
-.hs-lab {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
+  color: var(--text-dim);
   letter-spacing: 0.5px;
 }
 
-.stat-pct {
-  font-size: 0.85rem;
+.hs-value {
+  font-size: 14px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--text-bright);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.hs-value--rejected {
+  color: var(--red);
+}
+
+.hs-pct {
+  font-size: 10px;
+  color: var(--text-dim);
   margin-left: 4px;
 }
 
 .vnc-stat-value--rejected {
-  color: var(--status-error) !important;
+  color: var(--red) !important;
 }
 
 /* ── Reset ─────────────────────────────────────────────────────────────────── */

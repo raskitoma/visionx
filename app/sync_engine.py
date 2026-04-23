@@ -137,15 +137,35 @@ def sync_source(src, target_cols, current_sync_time):
     start_time = time.time()
     logger.info(f"\033[96m-------==== Review {line} ({host}) =====---\033[0m")
     
+    mysql_ok = "notok"
+    ping_ok = False
+    
+    # Initialize state so the line appears in the API immediately
+    if line not in sync_state['lines']:
+        sync_state['lines'][line] = {
+            "host": host,
+            "status": "initializing",
+            "last_sync": current_sync_time.isoformat(),
+            "ping": False
+        }
+
     tgt_conn = None
     src_conn = None
     created_count = 0
     updated_count = 0
-    mysql_ok = "notok"
+    
     try:
         tgt_conn = get_target_connection()
         if not tgt_conn:
-            logger.error(f"Could not connect to target DB for {line}")
+            error_msg = f"Could not connect to target DB for {line}"
+            logger.error(error_msg)
+            sync_state['lines'][line] = {
+                "host": host,
+                "status": "error",
+                "error": error_msg,
+                "last_sync": current_sync_time.isoformat(),
+                "ping": False
+            }
             return
 
         import subprocess
@@ -166,7 +186,15 @@ def sync_source(src, target_cols, current_sync_time):
                 row = cur.fetchone()
                 last_samp_no = row['max_samp'] if row and row['max_samp'] is not None else 0
         except Exception as e:
-            logger.error(f"Error querying target DB for {line}: {e}")
+            error_msg = f"Error querying target DB for {line}: {e}"
+            logger.error(error_msg)
+            sync_state['lines'][line] = {
+                "host": host,
+                "status": "error",
+                "error": error_msg,
+                "last_sync": current_sync_time.isoformat(),
+                "ping": ping_ok
+            }
             return
 
         try:
@@ -178,8 +206,20 @@ def sync_source(src, target_cols, current_sync_time):
             with src_conn.cursor() as cur:
                 # Sync runs
                 cur.execute("SELECT * FROM runs WHERE RunId >= %s ORDER BY RunId ASC LIMIT %s", (last_run_id, RECORDS_LIMIT))
-                
                 runs_data = cur.fetchall()
+                
+                # Ensure we also get the ABSOLUTE LATEST run to keep the dashboard live
+                cur.execute("SELECT MAX(RunId) as abs_max FROM runs")
+                abs_max_row = cur.fetchone()
+                if abs_max_row and abs_max_row['abs_max']:
+                    abs_max_id = abs_max_row['abs_max']
+                    if not any(r['RunId'] == abs_max_id for r in runs_data):
+                        cur.execute("SELECT * FROM runs WHERE RunId = %s", (abs_max_id,))
+                        latest_run_data = cur.fetchone()
+                        if latest_run_data:
+                            runs_data.append(latest_run_data)
+                            logger.info(f"Added absolute latest run {abs_max_id} to sync for {line} (Live Priority)")
+
                 influx_points = []
                 if runs_data:
                     logger.info(f"Targeting {len(runs_data)} runs to sync for {line}...")
@@ -210,8 +250,8 @@ def sync_source(src, target_cols, current_sync_time):
                             placeholders = ", ".join(["%s"] * len(vals))
                             col_names = ", ".join([f"`{c}`" for c in cols])
                             
-                            # LastUpdate logic
-                            exclude_runs = ['SyncUp', 'LastUpdate', 'created_at', 'StartTime', 'EndTime', 'FirstTime', 'LastTime', 'SourceLine', 'RunId']
+                            # LastUpdate logic - include important timestamps in change detection
+                            exclude_runs = ['SyncUp', 'LastUpdate', 'created_at', 'StartTime', 'SourceLine', 'RunId']
                             content_cols = [c for c in rd_filtered.keys() if c not in exclude_runs and not c.startswith('origin_')]
                             change_cond = " OR ".join([f"NOT (`{c}` <=> VALUES(`{c}`))" for c in content_cols]) if content_cols else "FALSE"
                             update_parts = [f"`LastUpdate` = IF({change_cond}, CURRENT_TIMESTAMP, `LastUpdate`)"]
@@ -265,7 +305,7 @@ def sync_source(src, target_cols, current_sync_time):
                             placeholders = ", ".join(["%s"] * len(vals))
                             col_names = ", ".join([f"`{c}`" for c in cols])
                             
-                            exclude_lanes = ['SyncUp', 'LastUpdate', 'created_at', 'FirstTime', 'LastTime', 'SourceLine', 'RunId', 'LaneId']
+                            exclude_lanes = ['SyncUp', 'LastUpdate', 'created_at', 'SourceLine', 'RunId', 'LaneId']
                             content_cols = [c for c in ld_filtered.keys() if c not in exclude_lanes and not c.startswith('origin_')]
                             change_cond = " OR ".join([f"NOT (`{c}` <=> VALUES(`{c}`))" for c in content_cols]) if content_cols else "FALSE"
                             update_parts = [f"`LastUpdate` = IF({change_cond}, CURRENT_TIMESTAMP, `LastUpdate`)"]
@@ -337,39 +377,6 @@ def sync_source(src, target_cols, current_sync_time):
                 
                 tgt_conn.commit()
                 
-                # Save results to vision_history
-                try:
-                    with tgt_conn.cursor() as tcur:
-                        tcur.execute("""
-                            SELECT RunId, LastTime, nDetected, nPassed, nMarginal, nRejected 
-                            FROM vision_runs 
-                            WHERE SourceLine = %s 
-                            ORDER BY RunId DESC, LastTime DESC 
-                            LIMIT 1
-                        """, (line,))
-                        latest_run = tcur.fetchone()
-                        if latest_run:
-                            duration = time.time() - start_time
-                            tcur.execute("""
-                                INSERT INTO vision_history 
-                                (SourceLine, RunId, Kind, Date_Run, Date_Source, nDetected, nPassed, nMarginal, nRejected, Process_Time)
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                            """, (
-                                line, 
-                                latest_run['RunId'], 
-                                "legacy" if is_legacy else "newer", 
-                                current_sync_time, 
-                                latest_run['LastTime'], 
-                                latest_run['nDetected'], 
-                                latest_run['nPassed'], 
-                                latest_run['nMarginal'], 
-                                latest_run['nRejected'], 
-                                duration
-                            ))
-                        tgt_conn.commit()
-                except Exception as e:
-                    logger.warning(f"Failed to record history for {line}: {e}")
-
                 if influx_points:
                     write_to_influx(influx_points)
 
@@ -394,6 +401,39 @@ def sync_source(src, target_cols, current_sync_time):
             }
         finally:
             duration = time.time() - start_time
+            # Always try to save results to vision_history if target DB is available
+            if tgt_conn:
+                try:
+                    with tgt_conn.cursor() as tcur:
+                        tcur.execute("""
+                            SELECT RunId, LastTime, nDetected, nPassed, nMarginal, nRejected 
+                            FROM vision_runs 
+                            WHERE SourceLine = %s 
+                            ORDER BY RunId DESC, LastTime DESC 
+                            LIMIT 1
+                        """, (line,))
+                        latest_run = tcur.fetchone()
+                        if latest_run:
+                            tcur.execute("""
+                                INSERT INTO vision_history 
+                                (SourceLine, RunId, Kind, Date_Run, Date_Source, nDetected, nPassed, nMarginal, nRejected, Process_Time)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            """, (
+                                line, 
+                                latest_run['RunId'], 
+                                "legacy" if is_legacy else "newer", 
+                                current_sync_time, 
+                                latest_run['LastTime'], 
+                                latest_run['nDetected'], 
+                                latest_run['nPassed'], 
+                                latest_run['nMarginal'], 
+                                latest_run['nRejected'], 
+                                duration
+                            ))
+                        tgt_conn.commit()
+                except Exception as e:
+                    logger.warning(f"Failed to record persistent history for {line}: {e}")
+
             ping_str = "ok" if ping_ok else "notok"
             changes_str = "YES" if (created_count + updated_count > 0) else "NO"
             summary = f"{line} - Ping {ping_str} - Mysql {mysql_ok} - changes detected: {changes_str} - {updated_count} records updated, {created_count} records created. Duration: {duration:.2f}s"
