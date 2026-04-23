@@ -317,13 +317,11 @@ function VncModal({ vncConfig, lineData, onClose }) {
                     {num(hourStats.nDetected)} / <span className="text-green">{num(hourStats.nPassed)}</span>
                   </span>
                 </div>
-                <div className="vnc-stat-group">
-                  <div className="vnc-stat">
-                    <span className="vnc-stat-label">LAST HOUR REJECTED</span>
-                    <span className="vnc-stat-value vnc-stat-value--rejected">
-                      {num(lineData.hourStats?.nRejected)} ({rejectPct(lineData.hourStats?.nRejected, lineData.hourStats?.nDetected)})
-                    </span>
-                  </div>
+                <div className="qc-stat-card qc-stat-card--bad">
+                  <span className="qc-label">REJECTED</span>
+                  <span className="qc-value">
+                    {num(hourStats.nRejected)} <span style={{opacity: 0.6}}>({rejectPct(hourStats.nRejected, hourStats.nDetected)})</span>
+                  </span>
                 </div>
               </div>
             )}
