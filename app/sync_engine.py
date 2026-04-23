@@ -1,4 +1,5 @@
 import pymysql
+import time
 import logging
 import pytz
 from datetime import datetime, timedelta
@@ -133,6 +134,7 @@ def sync_source(src, target_cols, current_sync_time):
     line = src['line']
     host = src['host']
     is_legacy = src.get('override_time', False)
+    start_time = time.time()
     logger.info(f"\033[96m-------==== Review {line} ({host}) =====---\033[0m")
     
     tgt_conn = None
@@ -358,9 +360,10 @@ def sync_source(src, target_cols, current_sync_time):
                 "ping": ping_ok
             }
         finally:
+            duration = time.time() - start_time
             ping_str = "ok" if ping_ok else "notok"
             changes_str = "YES" if (created_count + updated_count > 0) else "NO"
-            summary = f"{line} - Ping {ping_str} - Mysql {mysql_ok} - changes detected: {changes_str} - {updated_count} records updated, {created_count} records created."
+            summary = f"{line} - Ping {ping_str} - Mysql {mysql_ok} - changes detected: {changes_str} - {updated_count} records updated, {created_count} records created. Duration: {duration:.2f}s"
             logger.info(f"\033[92m{summary}\033[0m")
             
             if src_conn:
