@@ -123,7 +123,7 @@ def run_sync():
     for src in SOURCES:
         line = src['line']
         host = src['host']
-        logger.info(f"Syncing source {line} at {host}")
+        logger.info(f"-------==== Review {line} ({host}) =====---")
         
         # Ensure target connection is still alive
         try:
@@ -208,8 +208,8 @@ def run_sync():
                             # LastUpdate ONLY if any content columns changed (exclude timestamps/metadata)
                             exclude_runs = ['SyncUp', 'LastUpdate', 'created_at', 'StartTime', 'EndTime', 'FirstTime', 'LastTime', 'SourceLine', 'RunId']
                             content_cols = [c for c in rd_filtered.keys() if c not in exclude_runs and not c.startswith('origin_')]
-                            logger.info(f"Tracking changes for: {content_cols}")
-                            logger.info(f"Not Tracking changes for: {exclude_runs}")
+                            # logger.info(f"Tracking changes for: {content_cols}")
+                            # logger.info(f"Not Tracking changes for: {exclude_runs}")
                             change_cond = " OR ".join([f"NOT (`{c}` <=> VALUES(`{c}`))" for c in content_cols]) if content_cols else "FALSE"
                             update_parts = [f"`LastUpdate` = IF({change_cond}, CURRENT_TIMESTAMP, `LastUpdate`)"]
                             
