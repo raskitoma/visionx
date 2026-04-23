@@ -58,7 +58,7 @@ def get_target_connection():
         cursorclass=pymysql.cursors.DictCursor,
         charset='latin1',
         connect_timeout=30,
-        read_timeout=60
+        read_timeout=120
     )
 
 def get_source_connection(src):
@@ -154,20 +154,47 @@ def sync_source(src, target_cols, current_sync_time):
     created_count = 0
     updated_count = 0
     
-    try:
-        tgt_conn = get_target_connection()
-        if not tgt_conn:
-            error_msg = f"Could not connect to target DB for {line}"
-            logger.error(error_msg)
-            sync_state['lines'][line] = {
-                "host": host,
-                "status": "error",
-                "error": error_msg,
-                "last_sync": current_sync_time.isoformat(),
-                "ping": False
-            }
-            return
+    # Retry loop for Target DB initialization
+    last_run_id = 0
+    last_samp_no = 0
+    target_ready = False
+    
+    for attempt in range(3):
+        try:
+            tgt_conn = get_target_connection()
+            if not tgt_conn:
+                raise Exception("Target connection returned None")
+                
+            with tgt_conn.cursor() as cur:
+                # Fetch last synced info
+                cur.execute("SELECT MAX(RunId) as max_run FROM vision_runs WHERE SourceLine = %s", (line,))
+                row = cur.fetchone()
+                last_run_id = row['max_run'] if row and row['max_run'] is not None else 0
+                
+                cur.execute("SELECT MAX(SampNo) as max_samp FROM vision_samples WHERE SourceLine = %s", (line,))
+                row = cur.fetchone()
+                last_samp_no = row['max_samp'] if row and row['max_samp'] is not None else 0
+            
+            target_ready = True
+            break
+        except Exception as e:
+            if tgt_conn: tgt_conn.close()
+            logger.warning(f"Target DB attempt {attempt+1} failed for {line}: {e}")
+            time.sleep(1)
 
+    if not target_ready:
+        error_msg = f"Could not initialize target DB for {line} after 3 attempts"
+        logger.error(error_msg)
+        sync_state['lines'][line] = {
+            "host": host,
+            "status": "error",
+            "error": error_msg,
+            "last_sync": current_sync_time.isoformat(),
+            "ping": False
+        }
+        return
+    
+    try:
         import subprocess
         ping_ok = True
         try:
@@ -176,27 +203,6 @@ def sync_source(src, target_cols, current_sync_time):
         except Exception:
             ping_ok = False
             
-        try:
-            with tgt_conn.cursor() as cur:
-                cur.execute("SELECT MAX(RunId) as max_run FROM vision_runs WHERE SourceLine = %s", (line,))
-                row = cur.fetchone()
-                last_run_id = row['max_run'] if row and row['max_run'] is not None else 0
-                
-                cur.execute("SELECT MAX(SampNo) as max_samp FROM vision_samples WHERE SourceLine = %s", (line,))
-                row = cur.fetchone()
-                last_samp_no = row['max_samp'] if row and row['max_samp'] is not None else 0
-        except Exception as e:
-            error_msg = f"Error querying target DB for {line}: {e}"
-            logger.error(error_msg)
-            sync_state['lines'][line] = {
-                "host": host,
-                "status": "error",
-                "error": error_msg,
-                "last_sync": current_sync_time.isoformat(),
-                "ping": ping_ok
-            }
-            return
-
         try:
             if not ping_ok:
                 logger.warning(f"Host {host} unreachable via ping. Attempting connection anyway...")
@@ -471,7 +477,10 @@ def run_sync():
     # Run source syncs in parallel (Max 3)
     sorted_sources = sorted(SOURCES, key=lambda x: x['line'])
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-        futures = [executor.submit(sync_source, src, target_cols, current_sync_time) for src in sorted_sources]
+        futures = []
+        for src in sorted_sources:
+            futures.append(executor.submit(sync_source, src, target_cols, current_sync_time))
+            time.sleep(1) # Stagger start to avoid concurrent DB connection spikes
         concurrent.futures.wait(futures)
     
     sync_state['last_sync'] = current_sync_time.isoformat()
