@@ -96,10 +96,24 @@ def get_runs():
                     ORDER BY r.SourceLine
                 """)
                 rows = cur.fetchall()
+
+                cur.execute("""
+                    SELECT 
+                        SourceLine,
+                        (MAX(nDetected) > MIN(nDetected)) as is_running
+                    FROM vision_history
+                    WHERE Date_Run >= NOW() - INTERVAL 10 MINUTE
+                    GROUP BY SourceLine
+                """)
+                status_rows = cur.fetchall()
+                status_map = {r['SourceLine']: bool(r['is_running']) for r in status_rows}
+
         result = {}
         ny_tz = pytz.timezone('America/New_York')
         for row in rows:
             line = row['SourceLine']
+            row['isRunning'] = status_map.get(line, False)
+
             def safe_localize(dt):
                 if not dt: return None
                 if dt.tzinfo is None:
@@ -135,36 +149,50 @@ def get_minute_stats():
         return JSONResponse({"error": "InfluxDB not configured"}, status_code=503)
     
     try:
-        query = f'''
-        from(bucket: "{INFLUX['bucket']}")
-          |> range(start: -60m)
-          |> filter(fn: (r) => r["_measurement"] == "production_run")
-          |> filter(fn: (r) => r["_field"] == "nDetected" or r["_field"] == "nPassed" or r["_field"] == "nMarginal" or r["_field"] == "nRejected")
-          |> group(columns: ["line", "RunId", "_field"])
-          |> spread()
-          |> group(columns: ["line", "_field"])
-          |> sum()
-        '''
+        conn = pymysql.connect(
+            host=TARGET['host'],
+            port=TARGET['port'],
+            user=TARGET['user'],
+            password=TARGET['password'],
+            database=TARGET['database'],
+            cursorclass=pymysql.cursors.DictCursor,
+            charset='latin1',
+            connect_timeout=30,
+        )
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT 
+                        SourceLine,
+                        SUM(max_detected - min_detected) as nDetected,
+                        SUM(max_passed - min_passed) as nPassed,
+                        SUM(max_marginal - min_marginal) as nMarginal,
+                        SUM(max_rejected - min_rejected) as nRejected
+                    FROM (
+                        SELECT 
+                            SourceLine, 
+                            RunId, 
+                            MAX(nDetected) as max_detected, MIN(nDetected) as min_detected,
+                            MAX(nPassed) as max_passed, MIN(nPassed) as min_passed,
+                            MAX(nMarginal) as max_marginal, MIN(nMarginal) as min_marginal,
+                            MAX(nRejected) as max_rejected, MIN(nRejected) as min_rejected
+                        FROM vision_history
+                        WHERE Date_Run >= NOW() - INTERVAL 1 HOUR
+                        GROUP BY SourceLine, RunId
+                    ) t
+                    GROUP BY SourceLine
+                """)
+                rows = cur.fetchall()
         
         result = {}
-        with InfluxDBClient(url=INFLUX['url'], token=INFLUX['token'], org=INFLUX['org']) as client:
-            query_api = client.query_api()
-            tables = query_api.query(query=query)
-            
-            for table in tables:
-                for record in table.records:
-                    line = record.values.get("line")
-                    field = record.get_field()
-                    value = record.get_value()
-                    
-                    if line not in result:
-                        result[line] = {
-                            'nDetected': 0,
-                            'nPassed': 0,
-                            'nMarginal': 0,
-                            'nRejected': 0
-                        }
-                    result[line][field] = int(value or 0)
+        for row in rows:
+            line = row['SourceLine']
+            result[line] = {
+                'nDetected': int(row['nDetected'] or 0),
+                'nPassed': int(row['nPassed'] or 0),
+                'nMarginal': int(row['nMarginal'] or 0),
+                'nRejected': int(row['nRejected'] or 0)
+            }
         
         return result
     except Exception as e:

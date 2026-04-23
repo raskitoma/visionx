@@ -107,3 +107,19 @@ CREATE TABLE IF NOT EXISTS `vision_samples` (
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`SourceLine`, `RunId`, `LaneId`, `SampNo`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+CREATE TABLE IF NOT EXISTS `vision_history` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `SourceLine` varchar(40) NOT NULL,
+  `RunId` int(11) NOT NULL,
+  `Kind` varchar(20) DEFAULT NULL,
+  `Date_Run` datetime NOT NULL,
+  `Date_Source` datetime DEFAULT NULL,
+  `nDetected` int(11) DEFAULT '0',
+  `nPassed` int(11) DEFAULT '0',
+  `nMarginal` int(11) DEFAULT '0',
+  `nRejected` int(11) DEFAULT '0',
+  `Process_Time` double DEFAULT '0',
+  PRIMARY KEY (`id`),
+  INDEX `idx_line_date` (`SourceLine`, `Date_Run`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;

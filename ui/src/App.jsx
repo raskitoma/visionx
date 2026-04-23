@@ -34,6 +34,12 @@ function num(v, decimals = 0) {
   return decimals > 0 ? Number(v).toFixed(decimals) : Number(v).toLocaleString();
 }
 
+function rejectPct(rejected, detected) {
+  if (!detected || detected === 0) return '0%';
+  const pct = (rejected / detected) * 100;
+  return pct.toFixed(1) + '%';
+}
+
 function RelativeTime({ timestamp, serverTime }) {
   const [text, setText] = useState('—');
 
@@ -311,9 +317,13 @@ function VncModal({ vncConfig, lineData, onClose }) {
                     {num(hourStats.nDetected)} / <span className="text-green">{num(hourStats.nPassed)}</span>
                   </span>
                 </div>
-                <div className="qc-stat-card">
-                  <span className="qc-label">REJECTED</span>
-                  <span className="qc-value text-red">{num(hourStats.nRejected)}</span>
+                <div className="vnc-stat-group">
+                  <div className="vnc-stat">
+                    <span className="vnc-stat-label">LAST HOUR REJECTED</span>
+                    <span className="vnc-stat-value vnc-stat-value--rejected">
+                      {num(lineData.hourStats?.nRejected)} ({rejectPct(lineData.hourStats?.nRejected, lineData.hourStats?.nDetected)})
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
@@ -375,24 +385,17 @@ function VncCard({ lineName, host, port, password, lineData, onOpen }) {
 
 function HourStatsCard({ lineName, stats }) {
   if (!stats) return null;
-  
   return (
-    <div className="minute-card">
-      <div className="minute-card__header">
-        <h3>{lineName} <span className="minute-label">LAST HOUR</span></h3>
-      </div>
-      <div className="minute-card__body">
-        <div className="min-stat">
-          <span className="min-stat-label">DET</span>
-          <span className="min-stat-value">{num(stats.nDetected)}</span>
+    <div className="hour-stats-card">
+      <div className="hour-stats-title">LAST HOUR</div>
+      <div className="hour-stats-grid">
+        <div className="hs-item">
+          <div className="hs-val">{num(stats.nDetected)}</div>
+          <div className="hs-lab">DETECTED</div>
         </div>
-        <div className="min-stat">
-          <span className="min-stat-label">PASS</span>
-          <span className="min-stat-value text-green">{num(stats.nPassed)}</span>
-        </div>
-        <div className="min-stat">
-          <span className="min-stat-label">REJ</span>
-          <span className="min-stat-value text-red">{num(stats.nRejected)}</span>
+        <div className="hs-item">
+          <div className="hs-val hs-val--rejected">{num(stats.nRejected)}</div>
+          <div className="hs-lab">REJECTED ({rejectPct(stats.nRejected, stats.nDetected)})</div>
         </div>
       </div>
     </div>
@@ -407,8 +410,8 @@ function LineCard({ lineName, status, run, hourStats, serverTime, vncPort, vncPa
   const diffMinutes = (serverNowMs - lastUpdateMs) / 60000;
   
   const isStale = run?.LastUpdate && diffMinutes > minutesThreshold;
-  const isRunning = run && !run.EndTime && !isStale;
-  const isStopped = run && !run.EndTime && isStale;
+  const isRunning = run?.isRunning || false;
+  const isStopped = !isRunning && run && !run.EndTime;
 
   const lineData = { lineName, status, run, hourStats, serverTime, isRunning };
 
