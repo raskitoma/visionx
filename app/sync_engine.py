@@ -54,7 +54,9 @@ def get_target_connection():
         password=TARGET['password'],
         database=TARGET['database'],
         cursorclass=pymysql.cursors.DictCursor,
-        charset='latin1'
+        charset='latin1',
+        connect_timeout=10,
+        read_timeout=30
     )
 
 def get_source_connection(src):
@@ -65,7 +67,9 @@ def get_source_connection(src):
         password=src['password'],
         database=src['database'],
         cursorclass=pymysql.cursors.DictCursor,
-        charset='latin1'
+        charset='latin1',
+        connect_timeout=10,
+        read_timeout=30
     )
 
 def write_to_influx(data_points):
@@ -76,6 +80,24 @@ def write_to_influx(data_points):
             write_api.write(bucket=INFLUX['bucket'], record=data_points)
     except Exception as e:
         logger.error(f"InfluxDB write error: {e}")
+
+def combine_datetime(host_dt, source_dt):
+    """
+    Combines the date part of host_dt with the time part of source_dt.
+    If source_dt is None, returns host_dt.
+    """
+    if not source_dt:
+        return host_dt
+    try:
+        return host_dt.replace(
+            hour=source_dt.hour,
+            minute=source_dt.minute,
+            second=source_dt.second,
+            microsecond=source_dt.microsecond
+        )
+    except Exception as e:
+        logger.warning(f"Failed to combine datetime: {e}")
+        return host_dt
 
 def run_sync():
     logger.info("Starting sync cycle...")
@@ -103,6 +125,16 @@ def run_sync():
         host = src['host']
         logger.info(f"Syncing source {line} at {host}")
         
+        # Ensure target connection is still alive
+        try:
+            tgt_conn.ping(reconnect=True)
+        except Exception:
+            logger.warning("Target connection lost, reconnecting...")
+            tgt_conn = get_target_connection()
+            if not tgt_conn:
+                logger.error("Failed to reconnect to target DB")
+                break
+
         import subprocess
         ping_ok = True
         try:
@@ -140,10 +172,7 @@ def run_sync():
                         
                 influx_points = []
                 # Sync runs
-                if is_first_sync:
-                    cur.execute("SELECT * FROM runs WHERE RunId >= %s ORDER BY RunId ASC LIMIT %s", (last_run_id, RECORDS_LIMIT))
-                else:
-                    cur.execute("SELECT * FROM runs WHERE RunId >= %s ORDER BY RunId ASC", (last_run_id,))
+                cur.execute("SELECT * FROM runs WHERE RunId >= %s ORDER BY RunId ASC LIMIT %s", (last_run_id, RECORDS_LIMIT))
                 
                 runs_data = cur.fetchall()
                 if runs_data:
@@ -158,12 +187,16 @@ def run_sync():
 
                             # Determine which times to use for main columns
                             if src.get('override_time'):
-                                rd['StartTime'] = current_sync_time
-                                if rd.get('EndTime'): rd['EndTime'] = current_sync_time
-                                if rd.get('FirstTime'): rd['FirstTime'] = current_sync_time
-                                if rd.get('LastTime'): rd['LastTime'] = current_sync_time
+                                rd['StartTime'] = combine_datetime(current_sync_time, rd.get('origin_StartTime'))
+                                if rd.get('EndTime'):
+                                    rd['EndTime'] = combine_datetime(current_sync_time, rd.get('origin_EndTime'))
+                                if rd.get('FirstTime'):
+                                    rd['FirstTime'] = combine_datetime(current_sync_time, rd.get('origin_FirstTime'))
+                                if rd.get('LastTime'):
+                                    rd['LastTime'] = combine_datetime(current_sync_time, rd.get('origin_LastTime'))
                             
                             rd['SyncUp'] = current_sync_time
+                            rd['LastUpdate'] = current_sync_time # Ensure new records have a timestamp
                             
                             # Filter columns to match target schema
                             rd_filtered = filter_columns(rd, target_cols['runs'])
@@ -202,7 +235,7 @@ def run_sync():
                             influx_points.append(p)
                 
                 # Sync lanes
-                cur.execute("SELECT * FROM lanes WHERE RunId >= %s ORDER BY RunId ASC, LaneId ASC", (last_run_id,))
+                cur.execute("SELECT * FROM lanes WHERE RunId >= %s ORDER BY RunId ASC, LaneId ASC LIMIT %s", (last_run_id, RECORDS_LIMIT * 5))
                 lanes_data = cur.fetchall()
                 if lanes_data:
                     logger.info(f"Targeting {len(lanes_data)} lanes to sync for {line}...")
@@ -214,10 +247,13 @@ def run_sync():
 
                             # Determine which times to use for main columns
                             if src.get('override_time'):
-                                if ld.get('FirstTime'): ld['FirstTime'] = current_sync_time
-                                if ld.get('LastTime'): ld['LastTime'] = current_sync_time
+                                if ld.get('FirstTime'):
+                                    ld['FirstTime'] = combine_datetime(current_sync_time, ld.get('origin_FirstTime'))
+                                if ld.get('LastTime'):
+                                    ld['LastTime'] = combine_datetime(current_sync_time, ld.get('origin_LastTime'))
                             
                             ld['SyncUp'] = current_sync_time
+                            ld['LastUpdate'] = current_sync_time
                             
                             # Filter columns to match target schema
                             ld_filtered = filter_columns(ld, target_cols['lanes'])
@@ -243,8 +279,13 @@ def run_sync():
                             except Exception as ex:
                                 pass
                                 
-                # Sync samples
-                cur.execute("SELECT * FROM samples WHERE RunId >= %s ORDER BY RunId ASC, SampNo ASC", (last_run_id,))
+                # Sync samples - Incremental
+                cur.execute("""
+                    SELECT * FROM samples 
+                    WHERE (RunId = %s AND SampNo > %s) OR (RunId > %s) 
+                    ORDER BY RunId ASC, SampNo ASC 
+                    LIMIT %s
+                """, (last_run_id, last_samp_no, last_run_id, RECORDS_LIMIT * 10))
                 samples_data = cur.fetchall()
                 if samples_data:
                     logger.info(f"Targeting {len(samples_data)} samples to sync for {line}...")
@@ -255,9 +296,10 @@ def run_sync():
 
                             # Determine which times to use for main columns
                             if src.get('override_time'):
-                                sd['SampTime'] = current_sync_time
+                                sd['SampTime'] = combine_datetime(current_sync_time, sd.get('origin_SampTime'))
                             
                             sd['SyncUp'] = current_sync_time
+                            sd['LastUpdate'] = current_sync_time
                             
                             # Filter columns to match target schema
                             sd_filtered = filter_columns(sd, target_cols['samples'])
