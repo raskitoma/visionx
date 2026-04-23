@@ -338,33 +338,37 @@ def sync_source(src, target_cols, current_sync_time):
                 tgt_conn.commit()
                 
                 # Save results to vision_history
-                with tgt_conn.cursor() as tcur:
-                    tcur.execute("""
-                        SELECT RunId, LastTime, nDetected, nPassed, nMarginal, nRejected 
-                        FROM vision_runs 
-                        WHERE SourceLine = %s 
-                        ORDER BY RunId DESC, LastTime DESC 
-                        LIMIT 1
-                    """, (line,))
-                    latest_run = tcur.fetchone()
-                    if latest_run:
+                try:
+                    with tgt_conn.cursor() as tcur:
                         tcur.execute("""
-                            INSERT INTO vision_history 
-                            (SourceLine, RunId, Kind, Date_Run, Date_Source, nDetected, nPassed, nMarginal, nRejected, Process_Time)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """, (
-                            line, 
-                            latest_run['RunId'], 
-                            "legacy" if is_legacy else "newer", 
-                            current_sync_time, 
-                            latest_run['LastTime'], 
-                            latest_run['nDetected'], 
-                            latest_run['nPassed'], 
-                            latest_run['nMarginal'], 
-                            latest_run['nRejected'], 
-                            duration
-                        ))
-                    tgt_conn.commit()
+                            SELECT RunId, LastTime, nDetected, nPassed, nMarginal, nRejected 
+                            FROM vision_runs 
+                            WHERE SourceLine = %s 
+                            ORDER BY RunId DESC, LastTime DESC 
+                            LIMIT 1
+                        """, (line,))
+                        latest_run = tcur.fetchone()
+                        if latest_run:
+                            duration = time.time() - start_time
+                            tcur.execute("""
+                                INSERT INTO vision_history 
+                                (SourceLine, RunId, Kind, Date_Run, Date_Source, nDetected, nPassed, nMarginal, nRejected, Process_Time)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            """, (
+                                line, 
+                                latest_run['RunId'], 
+                                "legacy" if is_legacy else "newer", 
+                                current_sync_time, 
+                                latest_run['LastTime'], 
+                                latest_run['nDetected'], 
+                                latest_run['nPassed'], 
+                                latest_run['nMarginal'], 
+                                latest_run['nRejected'], 
+                                duration
+                            ))
+                        tgt_conn.commit()
+                except Exception as e:
+                    logger.warning(f"Failed to record history for {line}: {e}")
 
                 if influx_points:
                     write_to_influx(influx_points)
