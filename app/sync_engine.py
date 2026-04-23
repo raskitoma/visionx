@@ -137,6 +137,9 @@ def sync_source(src, target_cols, current_sync_time):
     
     tgt_conn = None
     src_conn = None
+    created_count = 0
+    updated_count = 0
+    mysql_ok = "notok"
     try:
         tgt_conn = get_target_connection()
         if not tgt_conn:
@@ -146,7 +149,7 @@ def sync_source(src, target_cols, current_sync_time):
         import subprocess
         ping_ok = True
         try:
-            res = subprocess.run(['ping', '-c', '1', '-W', '1', host], capture_output=True)
+            res = subprocess.run(['ping', '-c', '1', '-W', '5', host], capture_output=True)
             ping_ok = (res.returncode == 0)
         except Exception:
             ping_ok = False
@@ -169,6 +172,7 @@ def sync_source(src, target_cols, current_sync_time):
                 logger.warning(f"Host {host} unreachable via ping. Attempting connection anyway...")
                 
             src_conn = get_source_connection(src)
+            mysql_ok = "OK"
             with src_conn.cursor() as cur:
                 # Sync runs
                 cur.execute("SELECT * FROM runs WHERE RunId >= %s ORDER BY RunId ASC LIMIT %s", (last_run_id, RECORDS_LIMIT))
@@ -217,7 +221,9 @@ def sync_source(src, target_cols, current_sync_time):
                             
                             q = f"INSERT INTO `vision_runs` ({col_names}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"
                             try:
-                                tcur.execute(q, tuple(vals))
+                                affected = tcur.execute(q, tuple(vals))
+                                if affected == 1: created_count += 1
+                                elif affected == 2: updated_count += 1
                             except Exception as ex:
                                 logger.error(f"Error inserting run {rd.get('RunId')} for {line}: {ex}")
 
@@ -269,7 +275,9 @@ def sync_source(src, target_cols, current_sync_time):
                             
                             q = f"INSERT INTO `vision_lanes` ({col_names}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"
                             try:
-                                tcur.execute(q, tuple(vals))
+                                affected = tcur.execute(q, tuple(vals))
+                                if affected == 1: created_count += 1
+                                elif affected == 2: updated_count += 1
                             except Exception as ex:
                                 pass
                                 
@@ -309,7 +317,9 @@ def sync_source(src, target_cols, current_sync_time):
 
                             q = f"INSERT INTO `vision_samples` ({col_names}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"
                             try:
-                                tcur.execute(q, tuple(vals))
+                                affected = tcur.execute(q, tuple(vals))
+                                if affected == 1: created_count += 1
+                                elif affected == 2: updated_count += 1
                             except Exception as ex:
                                 pass
                                 
@@ -348,6 +358,11 @@ def sync_source(src, target_cols, current_sync_time):
                 "ping": ping_ok
             }
         finally:
+            ping_str = "ok" if ping_ok else "notok"
+            changes_str = "YES" if (created_count + updated_count > 0) else "NO"
+            summary = f"{line} - Ping {ping_str} - Mysql {mysql_ok} - changes detected: {changes_str} - {updated_count} records updated, {created_count} records created."
+            logger.info(f"\033[92m{summary}\033[0m")
+            
             if src_conn:
                 src_conn.close()
             if tgt_conn:

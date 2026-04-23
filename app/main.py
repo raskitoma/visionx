@@ -25,7 +25,7 @@ def run_ping():
         line = src['line']
         host = src['host']
         try:
-            res = subprocess.run(['ping', '-c', '1', '-W', '1', host], capture_output=True)
+            res = subprocess.run(['ping', '-c', '1', '-W', '5', host], capture_output=True)
             ping_ok = (res.returncode == 0)
         except Exception:
             ping_ok = False
@@ -68,7 +68,7 @@ def get_runs():
             database=TARGET['database'],
             cursorclass=pymysql.cursors.DictCursor,
             charset='latin1',
-            connect_timeout=5,
+            connect_timeout=30,
         )
         with conn:
             with conn.cursor() as cur:
