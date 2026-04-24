@@ -15,10 +15,10 @@ logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="VisionX Sync Tool")
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 import subprocess
-from config import SOURCES
+from config import SOURCES, MINUTES_LAST_UPDATE
 
 def run_ping():
     for src in SOURCES:
@@ -97,19 +97,35 @@ def get_runs():
                 """)
                 rows = cur.fetchall()
 
+                ny_tz = pytz.timezone('America/New_York')
+                threshold_time = datetime.now(ny_tz) - timedelta(minutes=MINUTES_LAST_UPDATE)
                 cur.execute("""
                     SELECT 
                         SourceLine,
-                        (MAX(nDetected) > MIN(nDetected)) as is_running
-                    FROM vision_history
-                    WHERE Date_Run >= NOW() - INTERVAL 10 MINUTE
+                        SUM(
+                            (max_det > min_det) OR 
+                            (max_pas > min_pas) OR 
+                            (max_mar > min_mar) OR 
+                            (max_rej > min_rej)
+                        ) > 0 as is_running
+                    FROM (
+                        SELECT 
+                            SourceLine, 
+                            RunId, 
+                            MAX(nDetected) as max_det, MIN(nDetected) as min_det,
+                            MAX(nPassed) as max_pas, MIN(nPassed) as min_pas,
+                            MAX(nMarginal) as max_mar, MIN(nMarginal) as min_mar,
+                            MAX(nRejected) as max_rej, MIN(nRejected) as min_rej
+                        FROM vision_history
+                        WHERE Date_Run >= %s
+                        GROUP BY SourceLine, RunId
+                    ) t
                     GROUP BY SourceLine
-                """)
+                """, (threshold_time,))
                 status_rows = cur.fetchall()
                 status_map = {r['SourceLine']: bool(r['is_running']) for r in status_rows}
 
         result = {}
-        ny_tz = pytz.timezone('America/New_York')
         for row in rows:
             line = row['SourceLine']
             row['isRunning'] = status_map.get(line, False)

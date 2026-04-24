@@ -260,7 +260,7 @@ def sync_source(src, target_cols, current_sync_time):
                             exclude_runs = ['SyncUp', 'LastUpdate', 'created_at', 'StartTime', 'SourceLine', 'RunId']
                             content_cols = [c for c in rd_filtered.keys() if c not in exclude_runs and not c.startswith('origin_')]
                             change_cond = " OR ".join([f"NOT (`{c}` <=> VALUES(`{c}`))" for c in content_cols]) if content_cols else "FALSE"
-                            update_parts = [f"`LastUpdate` = IF({change_cond}, CURRENT_TIMESTAMP, `LastUpdate`)"]
+                            update_parts = [f"`LastUpdate` = IF({change_cond}, VALUES(`LastUpdate`), `LastUpdate`)"]
                             
                             for c in cols:
                                 if c not in ['StartTime', 'created_at', 'LastUpdate']:
@@ -314,7 +314,7 @@ def sync_source(src, target_cols, current_sync_time):
                             exclude_lanes = ['SyncUp', 'LastUpdate', 'created_at', 'SourceLine', 'RunId', 'LaneId']
                             content_cols = [c for c in ld_filtered.keys() if c not in exclude_lanes and not c.startswith('origin_')]
                             change_cond = " OR ".join([f"NOT (`{c}` <=> VALUES(`{c}`))" for c in content_cols]) if content_cols else "FALSE"
-                            update_parts = [f"`LastUpdate` = IF({change_cond}, CURRENT_TIMESTAMP, `LastUpdate`)"]
+                            update_parts = [f"`LastUpdate` = IF({change_cond}, VALUES(`LastUpdate`), `LastUpdate`)"]
                             
                             for c in cols:
                                 if c not in ['created_at', 'LastUpdate']:
@@ -356,7 +356,7 @@ def sync_source(src, target_cols, current_sync_time):
                             exclude_samples = ['SyncUp', 'LastUpdate', 'created_at', 'SampTime', 'SourceLine', 'RunId', 'LaneId', 'SampNo']
                             content_cols = [c for c in sd_filtered.keys() if c not in exclude_samples and not c.startswith('origin_')]
                             change_cond = " OR ".join([f"NOT (`{c}` <=> VALUES(`{c}`))" for c in content_cols]) if content_cols else "FALSE"
-                            update_parts = [f"`LastUpdate` = IF({change_cond}, CURRENT_TIMESTAMP, `LastUpdate`)"]
+                            update_parts = [f"`LastUpdate` = IF({change_cond}, VALUES(`LastUpdate`), `LastUpdate`)"]
                             
                             for c in cols:
                                 if c not in ['created_at', 'LastUpdate']:
