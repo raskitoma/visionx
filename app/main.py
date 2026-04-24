@@ -97,38 +97,25 @@ def get_runs():
                 """)
                 rows = cur.fetchall()
 
+                # We already have LastUpdate from the vision_runs query above.
+                # To ensure 100% consistency with the UI's "Last Value Change" display,
+                # we calculate isRunning based on that same timestamp.
                 ny_tz = pytz.timezone('America/New_York')
-                threshold_time = datetime.now(ny_tz) - timedelta(minutes=MINUTES_LAST_UPDATE)
-                cur.execute("""
-                    SELECT 
-                        SourceLine,
-                        SUM(
-                            (max_det > min_det) OR 
-                            (max_pas > min_pas) OR 
-                            (max_mar > min_mar) OR 
-                            (max_rej > min_rej)
-                        ) > 0 as is_running
-                    FROM (
-                        SELECT 
-                            SourceLine, 
-                            RunId, 
-                            MAX(nDetected) as max_det, MIN(nDetected) as min_det,
-                            MAX(nPassed) as max_pas, MIN(nPassed) as min_pas,
-                            MAX(nMarginal) as max_mar, MIN(nMarginal) as min_mar,
-                            MAX(nRejected) as max_rej, MIN(nRejected) as min_rej
-                        FROM vision_history
-                        WHERE Date_Run >= %s
-                        GROUP BY SourceLine, RunId
-                    ) t
-                    GROUP BY SourceLine
-                """, (threshold_time,))
-                status_rows = cur.fetchall()
-                status_map = {r['SourceLine']: bool(r['is_running']) for r in status_rows}
+                now = datetime.now(ny_tz)
 
         result = {}
         for row in rows:
             line = row['SourceLine']
-            row['isRunning'] = status_map.get(line, False)
+            
+            # Determine isRunning based on LastUpdate
+            last_update = row['LastUpdate']
+            if last_update:
+                if last_update.tzinfo is None:
+                    last_update = ny_tz.localize(last_update)
+                diff_seconds = (now - last_update).total_seconds()
+                row['isRunning'] = diff_seconds < (MINUTES_LAST_UPDATE * 60)
+            else:
+                row['isRunning'] = False
 
             def safe_localize(dt):
                 if not dt: return None
