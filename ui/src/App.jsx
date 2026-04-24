@@ -62,10 +62,12 @@ function RelativeTime({ timestamp, serverTime }) {
       } else if (diffSec < 3600) {
         const m = Math.floor(diffSec / 60);
         setText(`${m}m ago`);
-      } else {
+      } else if (diffSec < 86400) {
         const h = Math.floor(diffSec / 3600);
         const m = Math.floor((diffSec % 3600) / 60);
         setText(`${h}h ${m}m ago`);
+      } else {
+        setText('More than 24h ago');
       }
     };
 

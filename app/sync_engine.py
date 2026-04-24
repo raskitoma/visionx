@@ -256,10 +256,10 @@ def sync_source(src, target_cols, current_sync_time):
                             placeholders = ", ".join(["%s"] * len(vals))
                             col_names = ", ".join([f"`{c}`" for c in cols])
                             
-                            # LastUpdate logic - exclude metadata and heartbeat timestamps from change detection
-                            exclude_runs = ['SyncUp', 'LastUpdate', 'created_at', 'StartTime', 'SourceLine', 'RunId', 'FirstTime', 'LastTime']
-                            content_cols = [c for c in rd_filtered.keys() if c not in exclude_runs and not c.startswith('origin_')]
-                            change_cond = " OR ".join([f"NOT (`{c}` <=> VALUES(`{c}`))" for c in content_cols]) if content_cols else "FALSE"
+                            # LastUpdate logic - only track actual production counters and product changes
+                            # This avoids false positives from floating-point noise in measurement averages
+                            content_cols = ['nDetected', 'nPassed', 'nMarginal', 'nRejected', 'ProductId', 'EndTime']
+                            change_cond = " OR ".join([f"NOT (`{c}` <=> VALUES(`{c}`))" for c in content_cols])
                             update_parts = [f"`LastUpdate` = IF({change_cond}, VALUES(`LastUpdate`), `LastUpdate`)"]
                             
                             for c in cols:
@@ -311,9 +311,9 @@ def sync_source(src, target_cols, current_sync_time):
                             placeholders = ", ".join(["%s"] * len(vals))
                             col_names = ", ".join([f"`{c}`" for c in cols])
                             
-                            exclude_lanes = ['SyncUp', 'LastUpdate', 'created_at', 'SourceLine', 'RunId', 'LaneId', 'FirstTime', 'LastTime']
-                            content_cols = [c for c in ld_filtered.keys() if c not in exclude_lanes and not c.startswith('origin_')]
-                            change_cond = " OR ".join([f"NOT (`{c}` <=> VALUES(`{c}`))" for c in content_cols]) if content_cols else "FALSE"
+                            # LastUpdate logic - only track actual production counters
+                            content_cols = ['nDetected', 'nPassed', 'nMarginal', 'nRejected']
+                            change_cond = " OR ".join([f"NOT (`{c}` <=> VALUES(`{c}`))" for c in content_cols])
                             update_parts = [f"`LastUpdate` = IF({change_cond}, VALUES(`LastUpdate`), `LastUpdate`)"]
                             
                             for c in cols:
