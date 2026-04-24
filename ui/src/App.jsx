@@ -248,7 +248,7 @@ function VncModal({ vncConfig, lineData, onClose }) {
   const run = lineData?.run;
   const hourStats = lineData?.hourStats;
   const serverTime = lineData?.serverTime;
-  const isRunning = run && !run.EndTime;
+  const isRunning = lineData?.isRunning;
 
   const handleClose = (e) => {
     if (e) e.stopPropagation();
@@ -412,7 +412,9 @@ function LineCard({ lineName, status, run, hourStats, serverTime, vncPort, vncPa
   const diffMinutes = (serverNowMs - lastUpdateMs) / 60000;
   
   const isStale = run?.LastUpdate && diffMinutes > minutesThreshold;
-  const isRunning = run?.isRunning || false;
+  // Use the backend isRunning status but override with local staleness check
+  // to ensure immediate UI feedback when the threshold is crossed.
+  const isRunning = run?.isRunning && !isStale;
   const isStopped = !isRunning && run && !run.EndTime;
 
   const lineData = { lineName, status, run, hourStats, serverTime, isRunning };

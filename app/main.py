@@ -136,6 +136,7 @@ def get_runs():
                 'nRejected':    row['nRejected'],
                 'WidthAverage': row['WidthAverage'],
                 'LastUpdate':   safe_localize(row['LastUpdate']),
+                'isRunning':    row.get('isRunning', False),
             }
         return result
     except Exception as e:
