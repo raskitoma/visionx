@@ -123,3 +123,52 @@ CREATE TABLE IF NOT EXISTS `vision_history` (
   PRIMARY KEY (`id`),
   INDEX `idx_line_date` (`SourceLine`, `Date_Run`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+CREATE TABLE IF NOT EXISTS `vision_product` (
+  `SourceLine` varchar(40) NOT NULL,
+  `ProductId` varchar(40) NOT NULL COMMENT 'Unique ID (name) of product',
+  `ProductDesc` varchar(50) DEFAULT NULL COMMENT 'Description of product',
+  `Elliptic` tinyint(1) unsigned DEFAULT NULL COMMENT 'Product is Elliptic (uses D2 short axis)',
+  `D1Min` double DEFAULT NULL COMMENT 'Min D or min dmajor if elliptic',
+  `D1Target` double DEFAULT NULL COMMENT 'Target D or target dmajor if elliptic',
+  `D1Max` double DEFAULT NULL COMMENT 'Max D or max dmajor if elliptic',
+  `D2Min` double DEFAULT NULL COMMENT 'if elliptic, min dminor',
+  `D2Target` double DEFAULT NULL COMMENT 'if elliptic, target dminor',
+  `D2Max` double DEFAULT NULL COMMENT 'if elliptic, max dminor',
+  `DAvgMin` double DEFAULT NULL COMMENT 'Min average diameter',
+  `DAvgMax` double DEFAULT NULL COMMENT 'Max average diameter',
+  `EFMax` int(11) DEFAULT NULL COMMENT 'Max edge point in a flat edge to pass',
+  `EFFlatDef` double DEFAULT NULL COMMENT 'Edge flatness definition (tolerance) 0.1 to 50%',
+  `EDMax` int(11) DEFAULT NULL COMMENT 'Max edge defect depth',
+  `HAMax` double DEFAULT NULL COMMENT 'Max hole area in sq wcs units',
+  `ShapeMax` double DEFAULT NULL,
+  `ToastMin` int(11) DEFAULT NULL COMMENT 'Minimum % toast for non marginal (no login in app UI)',
+  `RawMax` int(11) DEFAULT NULL COMMENT 'Maximum % raw (default is 0)',
+  `RawMaxX` double DEFAULT NULL COMMENT 'Max X distance for a pixel to be from any toast point for not raw',
+  `RawMaxY` double DEFAULT NULL COMMENT 'Max Y distance for a pixel to be from any toast point for not raw',
+  `RawPreErode` int(11) DEFAULT NULL COMMENT 'Number of closing (erode-dialte) pre processing steps efore dilation',
+  `TransMax` int(11) DEFAULT NULL COMMENT 'Max translucent area %',
+  `PressConfigId` varchar(32) DEFAULT NULL COMMENT 'Maps to NLANES and NPPL info in PressConfigs',
+  `LaneCoverage` int(11) DEFAULT NULL COMMENT 'Percent of available space covered by lane (1..100%)',
+  `LaneOffset` int(11) DEFAULT NULL COMMENT 'Lane position offset percent off center (-50% to 50%)',
+  `LaneRejectEnable` tinyint(1) unsigned DEFAULT NULL COMMENT 'True to enable lane reject errors',
+  `SegId` varchar(32) DEFAULT NULL COMMENT 'Maps to Seg1..3',
+  `MinGapFrames` int(11) DEFAULT '0',
+  `SyncUp` datetime DEFAULT NULL,
+  `LastUpdate` datetime DEFAULT NULL,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`SourceLine`, `ProductId`),
+  KEY `NdxSyncUp` (`SyncUp`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+CREATE TABLE IF NOT EXISTS `vision_alert_history` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `SourceLine` varchar(40) NOT NULL,
+  `AlertTime` datetime NOT NULL,
+  `RunId` int(11) NOT NULL,
+  `ProductId` varchar(40) NOT NULL,
+  `Details` text DEFAULT NULL,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_line_alert` (`SourceLine`, `AlertTime`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;

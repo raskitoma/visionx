@@ -8,6 +8,7 @@ import logging
 import socket
 import pymysql
 from sync_engine import run_sync, sync_state
+from alert_system import run_alert_check
 from config import TARGET, INFLUX
 from influxdb_client import InfluxDBClient
 
@@ -37,6 +38,7 @@ def run_ping():
 scheduler = BackgroundScheduler()
 scheduler.add_job(run_sync, 'interval', minutes=1, max_instances=1, next_run_time=datetime.now())
 scheduler.add_job(run_ping, 'interval', seconds=10, max_instances=1, next_run_time=datetime.now())
+scheduler.add_job(run_alert_check, 'interval', minutes=30, max_instances=1, next_run_time=datetime.now())
 @app.on_event("startup")
 def start_scheduler():
     scheduler.start()
@@ -97,11 +99,43 @@ def get_runs():
                 """)
                 rows = cur.fetchall()
 
-                # We already have LastUpdate from the vision_runs query above.
-                # To ensure 100% consistency with the UI's "Last Value Change" display,
-                # we calculate isRunning based on that same timestamp.
                 ny_tz = pytz.timezone('America/New_York')
                 now = datetime.now(ny_tz)
+                cutoff = now - timedelta(minutes=30)
+                cutoff_naive = cutoff.replace(tzinfo=None)
+
+                cur.execute("""
+                    SELECT 
+                        SourceLine,
+                        AVG(DMajorAverage) as DMajor,
+                        AVG(DMinorAverage) as DMinor,
+                        AVG(DAvgAverage) as DAvg,
+                        AVG(EFAverage) as EF,
+                        AVG(EDAverage) as ED,
+                        AVG(HAAverage) as HA,
+                        AVG(ShapeAverage) as Shape,
+                        AVG(ToastAverage) as Toast,
+                        AVG(RawAverage) as Raw,
+                        AVG(TransAverage) as Trans
+                    FROM vision_samples
+                    WHERE SampTime >= %s AND LaneId = '*'
+                    GROUP BY SourceLine
+                """, (cutoff_naive,))
+                avg_rows = cur.fetchall()
+                avg_30m = {}
+                for arow in avg_rows:
+                    avg_30m[arow['SourceLine']] = {
+                        'DMajor': arow['DMajor'],
+                        'DMinor': arow['DMinor'],
+                        'DAvg': arow['DAvg'],
+                        'EF': arow['EF'],
+                        'ED': arow['ED'],
+                        'HA': arow['HA'],
+                        'Shape': arow['Shape'],
+                        'Toast': arow['Toast'],
+                        'Raw': arow['Raw'],
+                        'Trans': arow['Trans']
+                    }
 
         result = {}
         for row in rows:
@@ -137,10 +171,122 @@ def get_runs():
                 'WidthAverage': row['WidthAverage'],
                 'LastUpdate':   safe_localize(row['LastUpdate']),
                 'isRunning':    row.get('isRunning', False),
+                'averages_30m': avg_30m.get(line, None),
             }
         return result
     except Exception as e:
         logging.error(f"Error fetching runs: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.get("/api/products")
+def get_products():
+    if not TARGET:
+        return JSONResponse({"error": "No target DB configured"}, status_code=503)
+    try:
+        conn = pymysql.connect(
+            host=TARGET['host'],
+            port=TARGET['port'],
+            user=TARGET['user'],
+            password=TARGET['password'],
+            database=TARGET['database'],
+            cursorclass=pymysql.cursors.DictCursor,
+            charset='latin1',
+            connect_timeout=30,
+        )
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT * FROM vision_product ORDER BY SourceLine, ProductId")
+                rows = cur.fetchall()
+
+        ny_tz = pytz.timezone('America/New_York')
+        result = {}
+        for row in rows:
+            line = row['SourceLine']
+            if line not in result:
+                result[line] = []
+
+            def safe_localize(dt):
+                if not dt: return None
+                if dt.tzinfo is None:
+                    return ny_tz.localize(dt).isoformat()
+                return dt.isoformat()
+
+            prod_entry = {
+                'ProductId': row['ProductId'],
+                'ProductDesc': row['ProductDesc'],
+                'Elliptic': row['Elliptic'],
+                'D1Min': row['D1Min'],
+                'D1Target': row['D1Target'],
+                'D1Max': row['D1Max'],
+                'D2Min': row['D2Min'],
+                'D2Target': row['D2Target'],
+                'D2Max': row['D2Max'],
+                'DAvgMin': row['DAvgMin'],
+                'DAvgMax': row['DAvgMax'],
+                'EFMax': row['EFMax'],
+                'EFFlatDef': row['EFFlatDef'],
+                'EDMax': row['EDMax'],
+                'HAMax': row['HAMax'],
+                'ShapeMax': row['ShapeMax'],
+                'ToastMin': row['ToastMin'],
+                'RawMax': row['RawMax'],
+                'TransMax': row['TransMax'],
+                'LastUpdate': safe_localize(row['LastUpdate']),
+                'SyncUp': safe_localize(row['SyncUp'])
+            }
+            result[line].append(prod_entry)
+        return result
+    except Exception as e:
+        logging.error(f"Error fetching products: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.get("/api/alerts")
+def get_alerts(limit: int = 50):
+    if not TARGET:
+        return JSONResponse({"error": "No target DB configured"}, status_code=503)
+    try:
+        conn = pymysql.connect(
+            host=TARGET['host'],
+            port=TARGET['port'],
+            user=TARGET['user'],
+            password=TARGET['password'],
+            database=TARGET['database'],
+            cursorclass=pymysql.cursors.DictCursor,
+            charset='latin1',
+            connect_timeout=30,
+        )
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT * FROM vision_alert_history 
+                    ORDER BY AlertTime DESC 
+                    LIMIT %s
+                """, (limit,))
+                rows = cur.fetchall()
+
+        ny_tz = pytz.timezone('America/New_York')
+        result = []
+        for row in rows:
+            def safe_localize(dt):
+                if not dt: return None
+                if dt.tzinfo is None:
+                    return ny_tz.localize(dt).isoformat()
+                return dt.isoformat()
+
+            result.append({
+                'id': row['id'],
+                'SourceLine': row['SourceLine'],
+                'AlertTime': safe_localize(row['AlertTime']),
+                'RunId': row['RunId'],
+                'ProductId': row['ProductId'],
+                'Details': row['Details'],
+                'created_at': safe_localize(row['created_at'])
+            })
+        return result
+    except Exception as e:
+        logging.error(f"Error fetching alerts: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
 
 @app.get("/api/minute_stats")

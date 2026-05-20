@@ -451,6 +451,7 @@ function LineCard({ lineName, status, run, hourStats, serverTime, vncPort, vncPa
         )}
 
         <RunInfoStrip run={run} serverTime={serverTime} isRunning={isRunning} />
+        <Averages30mStrip averages={run?.averages_30m} />
       </section>
       
       <div className="line-extra-row">
@@ -463,6 +464,197 @@ function LineCard({ lineName, status, run, hourStats, serverTime, vncPort, vncPa
           lineData={lineData}
           onOpen={onVncOpen} 
         />
+      </div>
+    </div>
+  );
+}
+
+function Averages30mStrip({ averages }) {
+  if (!averages) {
+    return (
+      <div className="avg-30m-strip empty">
+        <span className="avg-30m-label">LAST 30 MIN AVG</span>
+        <span className="avg-30m-no-data">No sample data in the last 30 minutes</span>
+      </div>
+    );
+  }
+
+  const val = (v, dec = 2) => {
+    if (v === null || v === undefined) return '—';
+    return Number(v).toFixed(dec);
+  };
+
+  return (
+    <div className="avg-30m-strip">
+      <span className="avg-30m-label">LAST 30 MIN AVG</span>
+      <div className="avg-30m-grid">
+        <div className="avg-30m-item" title="Diameter Major/Minor/Average">
+          <span className="avg-label">DIA (MAJ/MIN/AVG)</span>
+          <span className="avg-val">{val(averages.DMajor)} / {val(averages.DMinor)} / {val(averages.DAvg)}</span>
+        </div>
+        <div className="avg-30m-item" title="Edge Flatness Average">
+          <span className="avg-label">FLATNESS (EF)</span>
+          <span className="avg-val">{val(averages.EF)}</span>
+        </div>
+        <div className="avg-30m-item" title="Edge Defect Average">
+          <span className="avg-label">DEFECT (ED)</span>
+          <span className="avg-val">{val(averages.ED)}</span>
+        </div>
+        <div className="avg-30m-item" title="Hole Area Average">
+          <span className="avg-label">HOLE AREA (HA)</span>
+          <span className="avg-val">{val(averages.HA, 3)}</span>
+        </div>
+        <div className="avg-30m-item" title="Toast Average">
+          <span className="avg-label">TOAST %</span>
+          <span className="avg-val">{val(averages.Toast, 1)}%</span>
+        </div>
+        <div className="avg-30m-item" title="Raw Average">
+          <span className="avg-label">RAW %</span>
+          <span className="avg-val">{val(averages.Raw, 1)}%</span>
+        </div>
+        <div className="avg-30m-item" title="Translucent Average">
+          <span className="avg-label">TRANS %</span>
+          <span className="avg-val">{val(averages.Trans, 1)}%</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProductSpecsPanel({ products }) {
+  const [expandedLines, setExpandedLines] = useState({});
+
+  if (!products || Object.keys(products).length === 0) {
+    return (
+      <div className="empty-state">
+        <p>No product specifications synced.</p>
+      </div>
+    );
+  }
+
+  const toggleLine = (line) => {
+    setExpandedLines(prev => ({
+      ...prev,
+      [line]: !prev[line]
+    }));
+  };
+
+  const val = (v, dec = 2) => {
+    if (v === null || v === undefined) return '—';
+    return Number(v).toFixed(dec);
+  };
+
+  return (
+    <div className="specs-panel">
+      {Object.keys(products).sort().map(line => {
+        const list = products[line] || [];
+        const isExpanded = !!expandedLines[line];
+        const lastSync = list.length > 0 ? list[0].SyncUp : null;
+
+        return (
+          <div key={line} className="specs-accordion-card">
+            <div className="specs-accordion-header" onClick={() => toggleLine(line)}>
+              <div className="header-left">
+                <span className="specs-arrow">{isExpanded ? '▼' : '▶'}</span>
+                <h3>{line} Specifications</h3>
+                <span className="specs-badge">{list.length} Products</span>
+              </div>
+              {lastSync && (
+                <span className="specs-last-sync">Last Synced: {fmt(lastSync)}</span>
+              )}
+            </div>
+            
+            {isExpanded && (
+              <div className="specs-accordion-body">
+                <div className="specs-table-container">
+                  <table className="specs-table">
+                    <thead>
+                      <tr>
+                        <th>Product ID</th>
+                        <th>Description</th>
+                        <th>Type</th>
+                        <th>D1 (Min/Target/Max)</th>
+                        <th>D2 (Min/Target/Max)</th>
+                        <th>DAvg (Min/Max)</th>
+                        <th>EF Max</th>
+                        <th>ED Max</th>
+                        <th>HA Max</th>
+                        <th>Toast Min</th>
+                        <th>Raw Max</th>
+                        <th>Trans Max</th>
+                        <th>Last Sync</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {list.map(p => (
+                        <tr key={p.ProductId}>
+                          <td style={{ fontWeight: 'bold', color: 'var(--text-bright)' }}>{p.ProductId}</td>
+                          <td>{p.ProductDesc || '—'}</td>
+                          <td>{p.Elliptic ? 'Elliptic' : 'Round'}</td>
+                          <td>{val(p.D1Min)} / {val(p.D1Target)} / {val(p.D1Max)}</td>
+                          <td>{p.Elliptic ? `${val(p.D2Min)} / ${val(p.D2Target)} / ${val(p.D2Max)}` : '—'}</td>
+                          <td>{val(p.DAvgMin)} / {val(p.DAvgMax)}</td>
+                          <td>{p.EFMax ?? '—'}</td>
+                          <td>{p.EDMax ?? '—'}</td>
+                          <td>{val(p.HAMax, 3)}</td>
+                          <td>{p.ToastMin ?? '—'}%</td>
+                          <td>{p.RawMax ?? '—'}%</td>
+                          <td>{p.TransMax ?? '—'}%</td>
+                          <td>{fmt(p.LastUpdate)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function AlertLogPanel({ alerts }) {
+  if (!alerts || alerts.length === 0) {
+    return (
+      <div className="empty-state">
+        <p>⚠️ No alerts logged in history.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="alerts-panel">
+      <div className="panel-header">
+        <h3>Alert History (Last 50 Events)</h3>
+        <span className="alerts-info">History is automatically refreshed every 60s.</span>
+      </div>
+      <div className="alerts-table-container">
+        <table className="alerts-table">
+          <thead>
+            <tr>
+              <th style={{ width: '180px' }}>Alert Time (NY)</th>
+              <th style={{ width: '90px' }}>Line</th>
+              <th style={{ width: '90px' }}>Run ID</th>
+              <th style={{ width: '120px' }}>Product ID</th>
+              <th>Details / Parameter Violations</th>
+            </tr>
+          </thead>
+          <tbody>
+            {alerts.map(a => (
+              <tr key={a.id} className="alert-row">
+                <td style={{ color: 'var(--text-bright)', fontFamily: 'JetBrains Mono, monospace' }}>{fmt(a.AlertTime)}</td>
+                <td>
+                  <span className="alert-line-badge">{a.SourceLine}</span>
+                </td>
+                <td style={{ fontFamily: 'JetBrains Mono, monospace' }}>{a.RunId}</td>
+                <td style={{ fontWeight: 'bold' }}>{a.ProductId}</td>
+                <td className="alert-details-text">{a.Details}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -503,6 +695,9 @@ export default function App() {
   const [activeVnc, setActiveVnc] = useState(null);
   const [error, setError] = useState(null);
   const [countdown, setCountdown] = useState(REFRESH_INTERVAL);
+  const [activeTab, setActiveTab] = useState('lines');
+  const [products, setProducts] = useState({});
+  const [alerts, setAlerts] = useState([]);
 
   const fetchStatusOnly = useCallback(() => {
     fetch('/api/status').then(r => r.json())
@@ -516,11 +711,15 @@ export default function App() {
       fetch('/api/status').then(r => r.json()),
       fetch('/api/runs').then(r => r.json()),
       fetch('/api/minute_stats').then(r => r.json()),
+      fetch('/api/products').then(r => r.json()),
+      fetch('/api/alerts').then(r => r.json()),
     ])
-      .then(([s, ru, hs]) => {
+      .then(([s, ru, hs, pr, al]) => {
         setStatus(s);
         setRuns(ru);
         setHourStats(hs);
+        setProducts(pr);
+        setAlerts(al);
         setError(null);
         setLoading(false);
       })
@@ -583,6 +782,27 @@ export default function App() {
       </header>
 
       <main className="dashboard-main">
+        <div className="dashboard-tabs">
+          <button 
+            className={`tab-btn ${activeTab === 'lines' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('lines')}
+          >
+            🖥️ Lines Monitor
+          </button>
+          <button 
+            className={`tab-btn ${activeTab === 'products' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('products')}
+          >
+            📦 Product Specifications
+          </button>
+          <button 
+            className={`tab-btn ${activeTab === 'alerts' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('alerts')}
+          >
+            ⚠️ Alert Log
+          </button>
+        </div>
+
         {loading && <div className="spinner-wrap"><div className="spinner" /></div>}
         {error && (
           <div className="global-error">
@@ -590,26 +810,44 @@ export default function App() {
             <span className="error-message">{error}</span>
           </div>
         )}
-        {!loading && allLines.length === 0 && (
-          <div className="empty-state">
-            <p>⏳ Initial sync in progress — waiting for first cycle…</p>
-          </div>
+        
+        {!loading && (
+          <>
+            {activeTab === 'lines' && (
+              <>
+                {allLines.length === 0 ? (
+                  <div className="empty-state">
+                    <p>⏳ Initial sync in progress — waiting for first cycle…</p>
+                  </div>
+                ) : (
+                  <div className="lines-list">
+                    {allLines.map(line => (
+                      <LineCard
+                        key={line}
+                        lineName={line}
+                        status={status.lines[line]}
+                        run={runs[line]}
+                        hourStats={hourStats[line]}
+                        serverTime={status.serverTime}
+                        vncPort={status.vnc_port}
+                        vncPassword={status.vnc_password}
+                        onVncOpen={setActiveVnc}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {activeTab === 'products' && (
+              <ProductSpecsPanel products={products} />
+            )}
+
+            {activeTab === 'alerts' && (
+              <AlertLogPanel alerts={alerts} />
+            )}
+          </>
         )}
-        <div className="lines-list">
-          {allLines.map(line => (
-            <LineCard
-              key={line}
-              lineName={line}
-              status={status.lines[line]}
-              run={runs[line]}
-              hourStats={hourStats[line]}
-              serverTime={status.serverTime}
-              vncPort={status.vnc_port}
-              vncPassword={status.vnc_password}
-              onVncOpen={setActiveVnc}
-            />
-          ))}
-        </div>
       </main>
 
       <VncModal 

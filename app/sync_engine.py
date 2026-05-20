@@ -381,6 +381,40 @@ def sync_source(src, target_cols, current_sync_time):
                             
                             influx_points.append(p)
                 
+                # Sync products
+                cur.execute("SELECT * FROM products")
+                products_data = cur.fetchall()
+                if products_data:
+                    logger.info(f"Targeting {len(products_data)} products to sync for {line}...")
+                    with tgt_conn.cursor() as tcur:
+                        for pd in products_data:
+                            pd['SyncUp'] = current_sync_time
+                            pd['LastUpdate'] = current_sync_time
+                            
+                            pd_filtered = filter_columns(pd, target_cols['products'])
+                            cols = ['SourceLine'] + list(pd_filtered.keys())
+                            vals = [line] + list(pd_filtered.values())
+                            placeholders = ", ".join(["%s"] * len(vals))
+                            col_names = ", ".join([f"`{c}`" for c in cols])
+                            
+                            # Update if only it has changed logic
+                            # Exclude primary keys and audit timestamps from change detection
+                            exclude_cols = {'SourceLine', 'ProductId', 'SyncUp', 'LastUpdate', 'created_at'}
+                            content_cols = [c for c in pd_filtered.keys() if c not in exclude_cols]
+                            change_cond = " OR ".join([f"NOT (`{c}` <=> VALUES(`{c}`))" for c in content_cols]) if content_cols else "FALSE"
+                            
+                            update_parts = [f"`LastUpdate` = IF({change_cond}, VALUES(`LastUpdate`), `LastUpdate`)"]
+                            for c in cols:
+                                if c not in ['created_at', 'LastUpdate']:
+                                    update_parts.append(f"`{c}`=VALUES(`{c}`)")
+                            update_clause = ", ".join(update_parts)
+                            
+                            q = f"INSERT INTO `vision_product` ({col_names}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"
+                            try:
+                                tcur.execute(q, tuple(vals))
+                            except Exception as ex:
+                                logger.error(f"Error inserting product {pd.get('ProductId')} for {line}: {ex}")
+
                 tgt_conn.commit()
                 
                 if influx_points:
@@ -467,7 +501,8 @@ def run_sync():
         target_cols = {
             'runs':    get_table_columns(tgt_conn, 'vision_runs'),
             'lanes':   get_table_columns(tgt_conn, 'vision_lanes'),
-            'samples': get_table_columns(tgt_conn, 'vision_samples')
+            'samples': get_table_columns(tgt_conn, 'vision_samples'),
+            'products': get_table_columns(tgt_conn, 'vision_product')
         }
         tgt_conn.close()
     except Exception as e:
