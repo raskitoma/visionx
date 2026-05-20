@@ -132,9 +132,9 @@ def get_runs():
                         'ED': arow['ED'],
                         'HA': arow['HA'],
                         'Shape': arow['Shape'],
-                        'Toast': arow['Toast'],
-                        'Raw': arow['Raw'],
-                        'Trans': arow['Trans']
+                        'Toast': arow['Toast'] / 100.0 if arow['Toast'] is not None else None,
+                        'Raw': arow['Raw'] / 100.0 if arow['Raw'] is not None else None,
+                        'Trans': arow['Trans'] / 100.0 if arow['Trans'] is not None else None
                     }
 
         result = {}

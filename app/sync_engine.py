@@ -171,7 +171,7 @@ def sync_source(src, target_cols, current_sync_time):
                 row = cur.fetchone()
                 last_run_id = row['max_run'] if row and row['max_run'] is not None else 0
                 
-                cur.execute("SELECT MAX(SampNo) as max_samp FROM vision_samples WHERE SourceLine = %s", (line,))
+                cur.execute("SELECT MAX(SampNo) as max_samp FROM vision_samples WHERE SourceLine = %s AND RunId = %s", (line, last_run_id))
                 row = cur.fetchone()
                 last_samp_no = row['max_samp'] if row and row['max_samp'] is not None else 0
             

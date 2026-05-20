@@ -101,23 +101,26 @@ def check_run_limits(run: dict, product: dict) -> list:
     # 8. ToastMin limit
     toast_avg = run.get('ToastAverage')
     if toast_avg is not None:
+        toast_avg_pct = toast_avg / 100.0
         toast_min = product.get('ToastMin')
-        if toast_min is not None and toast_avg < toast_min:
-            errors.append(f"ToastAverage ({toast_avg:.3f}) is below ToastMin ({toast_min})")
+        if toast_min is not None and toast_avg_pct < toast_min:
+            errors.append(f"ToastAverage ({toast_avg_pct:.3f}%) is below ToastMin ({toast_min}%)")
 
     # 9. RawMax limit
     raw_avg = run.get('RawAverage')
     if raw_avg is not None:
+        raw_avg_pct = raw_avg / 100.0
         raw_max = product.get('RawMax')
-        if raw_max is not None and raw_avg > raw_max:
-            errors.append(f"RawAverage ({raw_avg:.3f}) is above RawMax ({raw_max})")
+        if raw_max is not None and raw_avg_pct > raw_max:
+            errors.append(f"RawAverage ({raw_avg_pct:.3f}%) is above RawMax ({raw_max}%)")
 
     # 10. TransMax limit
     trans_avg = run.get('TransAverage')
     if trans_avg is not None:
+        trans_avg_pct = trans_avg / 100.0
         trans_max = product.get('TransMax')
-        if trans_max is not None and trans_avg > trans_max:
-            errors.append(f"TransAverage ({trans_avg:.3f}) is above TransMax ({trans_max})")
+        if trans_max is not None and trans_avg_pct > trans_max:
+            errors.append(f"TransAverage ({trans_avg_pct:.3f}%) is above TransMax ({trans_max}%)")
 
     return errors
 
