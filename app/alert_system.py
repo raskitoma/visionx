@@ -43,6 +43,7 @@ class SlackAlertHandler(AlertHandler):
     def handle_alert(self, line: str, run_id: int, product_id: str, timestamp: datetime, errors: list):
         import urllib.request
         import json
+        import re
 
         mention_str = ""
         if self.mention_target:
@@ -62,7 +63,19 @@ class SlackAlertHandler(AlertHandler):
                         mention_str = f"@{clean_target} "
 
         formatted_time = timestamp.strftime('%Y-%m-%d %H:%M:%S %Z')
-        error_bullet_points = "\n".join([f"• {err}" for err in errors])
+        
+        # Parse and highlight faulty values using regular expressions
+        formatted_errors = []
+        pattern = re.compile(r"([A-Za-z0-9_]+)\s*\(([^)]+)\)\s*(is (?:above|below))\s*([A-Za-z0-9_]+)\s*\(([^)]+)\)")
+        for err in errors:
+            match = pattern.match(err)
+            if match:
+                param, val, direction, limit_name, limit_val = match.groups()
+                formatted_errors.append(f"• *{param}* ( ` {val} ` ) {direction} {limit_name} ({limit_val})")
+            else:
+                formatted_errors.append(f"• {err}")
+        
+        error_bullet_points = "\n".join(formatted_errors)
 
         message = f"⚠️ *VisionX Specs Violation Alert*\n"
         if mention_str:

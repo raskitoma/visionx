@@ -615,6 +615,33 @@ function ProductSpecsPanel({ products }) {
   );
 }
 
+function renderAlertDetails(details) {
+  if (!details) return null;
+  const violations = details.split('; ');
+  const regex = /([A-Za-z0-9_]+)\s*\(([^)]+)\)\s*(is (?:above|below))\s*([A-Za-z0-9_]+)\s*\(([^)]+)\)/;
+
+  return (
+    <div className="violation-list">
+      {violations.map((v, idx) => {
+        const match = v.match(regex);
+        if (match) {
+          const [_, param, value, direction, limitName, limitVal] = match;
+          return (
+            <div key={idx} className="violation-item">
+              <span className="violation-param">{param}</span>
+              <span className="violation-val violation-val--faulty">{value}</span>
+              <span className="violation-direction">{direction}</span>
+              <span className="violation-limit-name">{limitName}</span>
+              <span className="violation-val violation-val--limit">({limitVal})</span>
+            </div>
+          );
+        }
+        return <div key={idx} className="violation-item-raw">{v}</div>;
+      })}
+    </div>
+  );
+}
+
 function AlertLogPanel({ alerts }) {
   if (!alerts || alerts.length === 0) {
     return (
@@ -650,7 +677,7 @@ function AlertLogPanel({ alerts }) {
                 </td>
                 <td style={{ fontFamily: 'JetBrains Mono, monospace' }}>{a.RunId}</td>
                 <td style={{ fontWeight: 'bold' }}>{a.ProductId}</td>
-                <td className="alert-details-text">{a.Details}</td>
+                <td className="alert-details-text">{renderAlertDetails(a.Details)}</td>
               </tr>
             ))}
           </tbody>
@@ -689,6 +716,7 @@ function SettingsPanel() {
   const [isEnabled, setIsEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [message, setMessage] = useState(null);
 
   useEffect(() => {
@@ -734,6 +762,40 @@ function SettingsPanel() {
       .catch(err => {
         setMessage({ type: 'error', text: err.message });
         setSaving(false);
+      });
+  };
+
+  const handleTestConnection = () => {
+    if (!webhookUrl) {
+      setMessage({ type: 'error', text: 'Please enter a Webhook URL to test.' });
+      return;
+    }
+    setTesting(true);
+    setMessage(null);
+
+    fetch('/api/settings/slack/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        webhook_url: webhookUrl,
+        mention_target: mentionTarget
+      })
+    })
+      .then(res => {
+        if (!res.ok) {
+          return res.json().then(data => {
+            throw new Error(data.error || 'Failed to send test alert');
+          });
+        }
+        return res.json();
+      })
+      .then(data => {
+        setMessage({ type: 'success', text: 'Test alert sent successfully! Check your Slack channel.' });
+        setTesting(false);
+      })
+      .catch(err => {
+        setMessage({ type: 'error', text: err.message });
+        setTesting(false);
       });
   };
 
@@ -804,7 +866,15 @@ function SettingsPanel() {
         </div>
 
         <div className="form-actions">
-          <button type="submit" disabled={saving} className="save-btn">
+          <button 
+            type="button" 
+            onClick={handleTestConnection} 
+            disabled={saving || testing} 
+            className="test-btn"
+          >
+            {testing ? 'Testing...' : '🧪 Test Connection'}
+          </button>
+          <button type="submit" disabled={saving || testing} className="save-btn">
             {saving ? 'Saving...' : 'Save Settings'}
           </button>
         </div>

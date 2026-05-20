@@ -1440,4 +1440,86 @@ h1,h2 { margin: 0; font-weight: 600; color: var(--text-bright); }
   font-size: 14px;
 }
 
+/* Violation List & Badges in Alert Log */
+.violation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.violation-item {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.violation-param {
+  color: var(--text-bright);
+  font-weight: 600;
+}
+
+.violation-val--faulty {
+  color: #ffffff;
+  background: var(--red-bg);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  text-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.15);
+}
+
+.violation-direction {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.violation-limit-name {
+  color: var(--text);
+}
+
+.violation-val--limit {
+  color: var(--text-dim);
+}
+
+/* Test Connection Button */
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.test-btn {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-bright);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-sm);
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.15s, border-color 0.2s;
+}
+
+.test-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--text-dim);
+  transform: translateY(-1px);
+}
+
+.test-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.test-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+
 

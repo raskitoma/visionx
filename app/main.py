@@ -156,6 +156,59 @@ def save_slack_settings(settings: SlackSettingsSchema):
         logging.error(f"Error saving Slack settings: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
 
+class SlackTestSchema(BaseModel):
+    webhook_url: str
+    mention_target: Optional[str] = None
+
+@app.post("/api/settings/slack/test")
+def test_slack_settings(payload: SlackTestSchema):
+    if not payload.webhook_url:
+        return JSONResponse({"error": "Webhook URL is required"}, status_code=400)
+    
+    import urllib.request
+    import json
+    
+    mention_str = ""
+    if payload.mention_target:
+        target = payload.mention_target.strip()
+        if target:
+            if target.startswith('U') and len(target) >= 9:
+                mention_str = f"<@{target}> "
+            elif target in ['here', 'channel']:
+                mention_str = f"<!{target}> "
+            else:
+                clean_target = target.lstrip('@#')
+                if clean_target in ['here', 'channel']:
+                    mention_str = f"<!{clean_target}> "
+                elif clean_target.startswith('U') and len(clean_target) >= 9:
+                    mention_str = f"<@{clean_target}> "
+                else:
+                    mention_str = f"@{clean_target} "
+
+    message = "🧪 *VisionX Slack Test Alert*\n"
+    if mention_str:
+        message += f"{mention_str}\n"
+    message += "This is a test notification confirming that your VisionX Slack integration is active and working correctly!"
+    
+    slack_payload = {"text": message}
+    try:
+        req = urllib.request.Request(
+            payload.webhook_url,
+            data=json.dumps(slack_payload).encode('utf-8'),
+            headers={'Content-Type': 'application/json'},
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=10) as response:
+            status = response.status
+            if status == 200 or status == 204:
+                return {"success": True, "message": "Test alert sent successfully"}
+            else:
+                return JSONResponse({"error": f"Slack returned status {status}"}, status_code=400)
+    except Exception as e:
+        logging.error(f"Slack test alert failed: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 
 @app.get("/api/status")
 def get_status():
