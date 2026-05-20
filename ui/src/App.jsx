@@ -683,6 +683,136 @@ function Countdown({ seconds, total }) {
   );
 }
 
+function SettingsPanel() {
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [mentionTarget, setMentionTarget] = useState('');
+  const [isEnabled, setIsEnabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/settings/slack')
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch settings');
+        return res.json();
+      })
+      .then(data => {
+        setWebhookUrl(data.webhook_url || '');
+        setMentionTarget(data.mention_target || '');
+        setIsEnabled(!!data.is_enabled);
+        setLoading(false);
+      })
+      .catch(err => {
+        setMessage({ type: 'error', text: err.message });
+        setLoading(false);
+      });
+  }, []);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setMessage(null);
+
+    fetch('/api/settings/slack', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        webhook_url: webhookUrl,
+        mention_target: mentionTarget,
+        is_enabled: isEnabled
+      })
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to save settings');
+        return res.json();
+      })
+      .then(data => {
+        setMessage({ type: 'success', text: 'Slack settings saved successfully.' });
+        setSaving(false);
+      })
+      .catch(err => {
+        setMessage({ type: 'error', text: err.message });
+        setSaving(false);
+      });
+  };
+
+  if (loading) {
+    return (
+      <div className="settings-loading-wrap">
+        <div className="spinner" />
+        <p>Loading settings...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="settings-panel">
+      <div className="settings-header">
+        <h3>⚙️ Slack Notification Settings</h3>
+        <p className="settings-desc">Configure Slack integration to receive specs violation alerts instantly.</p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="settings-form">
+        {message && (
+          <div className={`settings-alert settings-alert--${message.type}`}>
+            {message.type === 'error' ? '❌' : '✅'} {message.text}
+          </div>
+        )}
+
+        <div className="form-group toggle-group">
+          <label className="toggle-label-container">
+            <span className="toggle-text">Enable Slack Alerts</span>
+            <input 
+              type="checkbox" 
+              checked={isEnabled} 
+              onChange={(e) => setIsEnabled(e.target.checked)} 
+              className="toggle-checkbox"
+            />
+            <span className="toggle-slider"></span>
+          </label>
+          <span className="field-hint">Turn Slack alerting on or off. When enabled, alerts are sent once when a specs violation is first detected on a run.</span>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="webhook_url">Slack Webhook URL</label>
+          <input
+            id="webhook_url"
+            type="url"
+            value={webhookUrl}
+            onChange={(e) => setWebhookUrl(e.target.value)}
+            placeholder="https://hooks.slack.com/services/..."
+            required={isEnabled}
+            className="form-input"
+          />
+          <span className="field-hint">The incoming webhook URL provided by Slack for your channel or workspace.</span>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="mention_target">Slack Member ID or Mention Target (Optional)</label>
+          <input
+            id="mention_target"
+            type="text"
+            value={mentionTarget}
+            onChange={(e) => setMentionTarget(e.target.value)}
+            placeholder="e.g. U12345678, here, channel"
+            className="form-input"
+          />
+          <span className="field-hint">
+            Specify a Slack Member ID (e.g. <code>U12345678</code>) to directly mention and notify a specific user, or enter <code>here</code> or <code>channel</code> to ping the active participants.
+          </span>
+        </div>
+
+        <div className="form-actions">
+          <button type="submit" disabled={saving} className="save-btn">
+            {saving ? 'Saving...' : 'Save Settings'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 // ── main app ──────────────────────────────────────────────────────────────────
 
 const REFRESH_INTERVAL = 60; // seconds
@@ -801,6 +931,12 @@ export default function App() {
           >
             ⚠️ Alert Log
           </button>
+          <button 
+            className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('settings')}
+          >
+            ⚙️ Slack Settings
+          </button>
         </div>
 
         {loading && <div className="spinner-wrap"><div className="spinner" /></div>}
@@ -845,6 +981,10 @@ export default function App() {
 
             {activeTab === 'alerts' && (
               <AlertLogPanel alerts={alerts} />
+            )}
+
+            {activeTab === 'settings' && (
+              <SettingsPanel />
             )}
           </>
         )}

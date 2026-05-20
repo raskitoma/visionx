@@ -39,13 +39,123 @@ scheduler = BackgroundScheduler()
 scheduler.add_job(run_sync, 'interval', minutes=1, max_instances=1, next_run_time=datetime.now())
 scheduler.add_job(run_ping, 'interval', seconds=10, max_instances=1, next_run_time=datetime.now())
 scheduler.add_job(run_alert_check, 'interval', minutes=30, max_instances=1, next_run_time=datetime.now())
+def init_settings_table():
+    if not TARGET:
+        logging.error("No TARGET database configured. Skipping settings table initialization.")
+        return
+    try:
+        conn = pymysql.connect(
+            host=TARGET['host'],
+            port=TARGET['port'],
+            user=TARGET['user'],
+            password=TARGET['password'],
+            database=TARGET['database'],
+            charset='utf8mb4',
+            cursorclass=pymysql.cursors.DictCursor
+        )
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS `vision_slack_settings` (
+                      `id` int(11) NOT NULL AUTO_INCREMENT,
+                      `webhook_url` varchar(500) NOT NULL,
+                      `mention_target` varchar(100) DEFAULT NULL,
+                      `is_enabled` tinyint(1) NOT NULL DEFAULT '1',
+                      `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+                      `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                      PRIMARY KEY (`id`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+                """)
+                cur.execute("SELECT COUNT(*) as count FROM vision_slack_settings")
+                row = cur.fetchone()
+                if row and row['count'] == 0:
+                    cur.execute("""
+                        INSERT INTO vision_slack_settings (id, webhook_url, mention_target, is_enabled)
+                        VALUES (1, '', '', 0)
+                    """)
+            conn.commit()
+            logging.info("vision_slack_settings table initialized successfully.")
+    except Exception as e:
+        logging.error(f"Failed to initialize vision_slack_settings table: {e}")
+
 @app.on_event("startup")
 def start_scheduler():
+    init_settings_table()
     scheduler.start()
 
 @app.on_event("shutdown")
 def stop_scheduler():
     scheduler.shutdown()
+
+from pydantic import BaseModel
+from typing import Optional
+
+class SlackSettingsSchema(BaseModel):
+    webhook_url: str
+    mention_target: Optional[str] = None
+    is_enabled: bool
+
+@app.get("/api/settings/slack")
+def get_slack_settings():
+    if not TARGET:
+        return JSONResponse({"error": "No target DB configured"}, status_code=503)
+    try:
+        conn = pymysql.connect(
+            host=TARGET['host'],
+            port=TARGET['port'],
+            user=TARGET['user'],
+            password=TARGET['password'],
+            database=TARGET['database'],
+            cursorclass=pymysql.cursors.DictCursor,
+            charset='latin1',
+            connect_timeout=30,
+        )
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT webhook_url, mention_target, is_enabled FROM vision_slack_settings WHERE id = 1")
+                row = cur.fetchone()
+                if not row:
+                    return {"webhook_url": "", "mention_target": "", "is_enabled": False}
+                return {
+                    "webhook_url": row["webhook_url"],
+                    "mention_target": row["mention_target"] or "",
+                    "is_enabled": bool(row["is_enabled"])
+                }
+    except Exception as e:
+        logging.error(f"Error fetching Slack settings: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+@app.post("/api/settings/slack")
+def save_slack_settings(settings: SlackSettingsSchema):
+    if not TARGET:
+        return JSONResponse({"error": "No target DB configured"}, status_code=503)
+    try:
+        conn = pymysql.connect(
+            host=TARGET['host'],
+            port=TARGET['port'],
+            user=TARGET['user'],
+            password=TARGET['password'],
+            database=TARGET['database'],
+            cursorclass=pymysql.cursors.DictCursor,
+            charset='latin1',
+            connect_timeout=30,
+        )
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO vision_slack_settings (id, webhook_url, mention_target, is_enabled)
+                    VALUES (1, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE 
+                        webhook_url = VALUES(webhook_url),
+                        mention_target = VALUES(mention_target),
+                        is_enabled = VALUES(is_enabled)
+                """, (settings.webhook_url, settings.mention_target, 1 if settings.is_enabled else 0))
+            conn.commit()
+        return {"success": True, "message": "Slack settings saved successfully"}
+    except Exception as e:
+        logging.error(f"Error saving Slack settings: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
 
 @app.get("/api/status")
 def get_status():

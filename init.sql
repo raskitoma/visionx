@@ -172,3 +172,14 @@ CREATE TABLE IF NOT EXISTS `vision_alert_history` (
   PRIMARY KEY (`id`),
   KEY `idx_line_alert` (`SourceLine`, `AlertTime`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+CREATE TABLE IF NOT EXISTS `vision_slack_settings` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `webhook_url` varchar(500) NOT NULL,
+  `mention_target` varchar(100) DEFAULT NULL,
+  `is_enabled` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+

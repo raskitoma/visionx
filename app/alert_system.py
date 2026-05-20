@@ -34,6 +34,65 @@ class DbAlertHandler(AlertHandler):
         except Exception as e:
             logger.error(f"Failed to save alert to DB for Line {line}, Run {run_id}: {e}")
 
+class SlackAlertHandler(AlertHandler):
+    """Triggers alerts by posting a notification to a Slack webhook."""
+    def __init__(self, webhook_url: str, mention_target: str = None):
+        self.webhook_url = webhook_url
+        self.mention_target = mention_target
+
+    def handle_alert(self, line: str, run_id: int, product_id: str, timestamp: datetime, errors: list):
+        import urllib.request
+        import json
+
+        mention_str = ""
+        if self.mention_target:
+            target = self.mention_target.strip()
+            if target:
+                if target.startswith('U') and len(target) >= 9:
+                    mention_str = f"<@{target}> "
+                elif target in ['here', 'channel']:
+                    mention_str = f"<!{target}> "
+                else:
+                    clean_target = target.lstrip('@#')
+                    if clean_target in ['here', 'channel']:
+                        mention_str = f"<!{clean_target}> "
+                    elif clean_target.startswith('U') and len(clean_target) >= 9:
+                        mention_str = f"<@{clean_target}> "
+                    else:
+                        mention_str = f"@{clean_target} "
+
+        formatted_time = timestamp.strftime('%Y-%m-%d %H:%M:%S %Z')
+        error_bullet_points = "\n".join([f"• {err}" for err in errors])
+
+        message = f"⚠️ *VisionX Specs Violation Alert*\n"
+        if mention_str:
+            message += f"{mention_str}\n"
+        message += (
+            f"*Line:* {line}\n"
+            f"*Product ID:* {product_id}\n"
+            f"*Run ID:* {run_id}\n"
+            f"*Time:* {formatted_time}\n"
+            f"*Details:*\n{error_bullet_points}"
+        )
+
+        payload = {"text": message}
+        try:
+            req = urllib.request.Request(
+                self.webhook_url,
+                data=json.dumps(payload).encode('utf-8'),
+                headers={'Content-Type': 'application/json'},
+                method='POST'
+            )
+            with urllib.request.urlopen(req, timeout=10) as response:
+                status = response.status
+                if status == 200 or status == 204:
+                    logger.info(f"Successfully sent Slack notification for Line {line}, Run {run_id}")
+                else:
+                    logger.error(f"Slack webhook returned non-200 status: {status}")
+        except Exception as e:
+            logger.error(f"Failed to send Slack alert: {e}")
+
+
 def check_run_limits(run: dict, product: dict) -> list:
     """Compares the run averages against the product specification limits."""
     errors = []
@@ -141,10 +200,29 @@ def run_alert_check():
             logger.error("Could not connect to target DB for alert checking.")
             return
             
+        slack_handler = None
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT COUNT(*) as cnt FROM information_schema.tables 
+                    WHERE table_schema = DATABASE() AND table_name = 'vision_slack_settings'
+                """)
+                table_exists = cur.fetchone()
+                if table_exists and table_exists['cnt'] > 0:
+                    cur.execute("SELECT webhook_url, mention_target, is_enabled FROM vision_slack_settings WHERE id = 1")
+                    settings = cur.fetchone()
+                    if settings and settings['is_enabled'] and settings['webhook_url']:
+                        slack_handler = SlackAlertHandler(settings['webhook_url'], settings['mention_target'])
+        except Exception as se:
+            logger.warning(f"Could not load Slack settings: {se}")
+
         handlers = [
             LogAlertHandler(),
             DbAlertHandler(conn)
         ]
+        if slack_handler:
+            handlers.append(slack_handler)
+            logger.info("Slack alerts are enabled and handler is attached.")
         
         with conn.cursor() as cur:
             # Find runs with activity (LastUpdate) in the last 30 minutes
@@ -165,6 +243,18 @@ def run_alert_check():
                 run_id = run['RunId']
                 product_id = run['ProductId']
                 
+                # Check if an alert was already triggered for this run to avoid duplicates
+                cur.execute("""
+                    SELECT COUNT(*) as cnt FROM vision_alert_history 
+                    WHERE SourceLine = %s AND RunId = %s
+                """, (line, run_id))
+                cnt_row = cur.fetchone()
+                already_alerted = cnt_row['cnt'] > 0 if cnt_row else False
+                
+                if already_alerted:
+                    logger.info(f"Alert already triggered for Line {line}, Run {run_id}. Skipping duplicate check.")
+                    continue
+                
                 # Fetch product spec
                 cur.execute("""
                     SELECT * FROM vision_product 
@@ -176,7 +266,29 @@ def run_alert_check():
                     logger.warning(f"Product specifications not found for Line {line}, Product {product_id}. Skipping validation.")
                     continue
                     
-                errors = check_run_limits(run, product)
+                # Fetch 30-minute average of samples for this run
+                cur.execute("""
+                    SELECT 
+                        AVG(DMajorAverage) as DMajorAverage,
+                        AVG(DMinorAverage) as DMinorAverage,
+                        AVG(DAvgAverage) as DAvgAverage,
+                        AVG(EFAverage) as EFAverage,
+                        AVG(EDAverage) as EDAverage,
+                        AVG(HAAverage) as HAAverage,
+                        AVG(ShapeAverage) as ShapeAverage,
+                        AVG(ToastAverage) as ToastAverage,
+                        AVG(RawAverage) as RawAverage,
+                        AVG(TransAverage) as TransAverage
+                    FROM vision_samples
+                    WHERE SourceLine = %s AND RunId = %s AND SampTime >= %s AND LaneId = '*'
+                """, (line, run_id, cutoff_naive))
+                avg_row = cur.fetchone()
+                
+                check_data = run
+                if avg_row and avg_row['DAvgAverage'] is not None:
+                    check_data = avg_row
+                    
+                errors = check_run_limits(check_data, product)
                 if errors:
                     # Alert trigger!
                     for handler in handlers:

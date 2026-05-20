@@ -96,10 +96,39 @@ try:
             for row in cur.fetchall():
                 print(row)
             
-            cur.execute("SELECT SourceLine, RunId, StartTime, LastTime, LastUpdate FROM vision_runs ORDER BY LastUpdate DESC LIMIT 5")
-            for r in cur.fetchall():
-                print(r)
-                cur.execute("SELECT COUNT(*), MAX(SampNo) FROM vision_samples WHERE SourceLine = %s AND RunId = %s", (r['SourceLine'], r['RunId']))
-                print(f"  Samples in TARGET: {cur.fetchone()}")
+            import pytz
+            from datetime import datetime, timedelta
+            ny_tz = pytz.timezone('America/New_York')
+            now_ny = datetime.now(ny_tz)
+            cutoff_ny = now_ny - timedelta(minutes=30)
+            cutoff_naive = cutoff_ny.replace(tzinfo=None)
+            
+            cur.execute("""
+                SELECT 
+                    AVG(DMajorAverage) as DMajorAverage,
+                    AVG(DMinorAverage) as DMinorAverage,
+                    AVG(DAvgAverage) as DAvgAverage,
+                    AVG(EFAverage) as EFAverage,
+                    AVG(EDAverage) as EDAverage,
+                    AVG(HAAverage) as HAAverage,
+                    AVG(ShapeAverage) as ShapeAverage,
+                    AVG(ToastAverage) as ToastAverage,
+                    AVG(RawAverage) as RawAverage,
+                    AVG(TransAverage) as TransAverage
+                FROM vision_samples
+                WHERE SourceLine = 'L01' AND RunId = 9543 AND SampTime >= %s AND LaneId = '*'
+            """, (cutoff_naive,))
+            print(f"\n30-minute averages for L01 Run 9543 (cutoff={cutoff_naive}):")
+            print(cur.fetchone())
+            
+            cur.execute("""
+                SELECT SampNo, SampTime, DMajorAverage, DAvgAverage, ToastAverage 
+                FROM vision_samples 
+                WHERE SourceLine = 'L01' AND RunId = 9543 
+                ORDER BY SampNo DESC LIMIT 20
+            """)
+            print("\nRecent 20 samples in TARGET DB for L01 Run 9543:")
+            for row in cur.fetchall():
+                print(row)
 except Exception as e:
     print(f"Error: {e}")
