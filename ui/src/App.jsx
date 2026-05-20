@@ -643,45 +643,159 @@ function renderAlertDetails(details) {
 }
 
 function AlertLogPanel({ alerts }) {
-  if (!alerts || alerts.length === 0) {
+  const [filterText, setFilterText] = useState('');
+  const [sortField, setSortField] = useState('AlertTime');
+  const [sortAsc, setSortAsc] = useState(false);
+
+  // 1. Global Filtering
+  const filteredAlerts = (alerts || []).filter(a => {
+    if (!filterText.trim()) return true;
+    const term = filterText.toLowerCase();
+    
+    const timeStr = a.AlertTime ? fmt(a.AlertTime).toLowerCase() : '';
+    const lineStr = (a.SourceLine || '').toLowerCase();
+    const runStr = String(a.RunId || '').toLowerCase();
+    const prodStr = (a.ProductId || '').toLowerCase();
+    const detailsStr = (a.Details || '').toLowerCase();
+    const slackStr = a.SlackSentTime ? `sent ${fmt(a.SlackSentTime)}`.toLowerCase() : 'not sent';
+
     return (
-      <div className="empty-state">
-        <p>⚠️ No alerts logged in history.</p>
-      </div>
+      timeStr.includes(term) ||
+      lineStr.includes(term) ||
+      runStr.includes(term) ||
+      prodStr.includes(term) ||
+      detailsStr.includes(term) ||
+      slackStr.includes(term)
     );
-  }
+  });
+
+  // 2. Sorting
+  const sortedAlerts = [...filteredAlerts].sort((x, y) => {
+    let valX, valY;
+    if (sortField === 'AlertTime') {
+      valX = x.AlertTime ? new Date(x.AlertTime).getTime() : 0;
+      valY = y.AlertTime ? new Date(y.AlertTime).getTime() : 0;
+    } else if (sortField === 'SourceLine') {
+      valX = x.SourceLine || '';
+      valY = y.SourceLine || '';
+    } else if (sortField === 'RunId') {
+      valX = Number(x.RunId) || 0;
+      valY = Number(y.RunId) || 0;
+    } else if (sortField === 'ProductId') {
+      valX = x.ProductId || '';
+      valY = y.ProductId || '';
+    } else if (sortField === 'Details') {
+      valX = x.Details || '';
+      valY = y.Details || '';
+    } else if (sortField === 'SlackSentTime') {
+      valX = x.SlackSentTime ? new Date(x.SlackSentTime).getTime() : 0;
+      valY = y.SlackSentTime ? new Date(y.SlackSentTime).getTime() : 0;
+    }
+
+    if (valX < valY) return sortAsc ? -1 : 1;
+    if (valX > valY) return sortAsc ? 1 : -1;
+    return 0;
+  });
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortAsc(!sortAsc);
+    } else {
+      setSortField(field);
+      setSortAsc(false);
+    }
+  };
+
+  const renderSortIndicator = (field) => {
+    if (sortField !== field) return <span className="sort-indicator-icon">⇅</span>;
+    return sortAsc ? <span className="sort-indicator-icon active">▲</span> : <span className="sort-indicator-icon active">▼</span>;
+  };
 
   return (
     <div className="alerts-panel">
       <div className="panel-header">
-        <h3>Alert History (Last 50 Events)</h3>
-        <span className="alerts-info">History is automatically refreshed every 60s.</span>
+        <div className="panel-header-title">
+          <h3>Alert History</h3>
+          <span className="alerts-info">Refreshed every 60s.</span>
+        </div>
+        <div className="alerts-search-box">
+          <span className="search-icon">🔍</span>
+          <input
+            type="text"
+            placeholder="Search alerts..."
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+            className="search-input"
+          />
+          {filterText && (
+            <button onClick={() => setFilterText('')} className="clear-search-btn">
+              ✕
+            </button>
+          )}
+        </div>
       </div>
+
       <div className="alerts-table-container">
-        <table className="alerts-table">
-          <thead>
-            <tr>
-              <th style={{ width: '180px' }}>Alert Time (NY)</th>
-              <th style={{ width: '90px' }}>Line</th>
-              <th style={{ width: '90px' }}>Run ID</th>
-              <th style={{ width: '120px' }}>Product ID</th>
-              <th>Details / Parameter Violations</th>
-            </tr>
-          </thead>
-          <tbody>
-            {alerts.map(a => (
-              <tr key={a.id} className="alert-row">
-                <td style={{ color: 'var(--text-bright)', fontFamily: 'JetBrains Mono, monospace' }}>{fmt(a.AlertTime)}</td>
-                <td>
-                  <span className="alert-line-badge">{a.SourceLine}</span>
-                </td>
-                <td style={{ fontFamily: 'JetBrains Mono, monospace' }}>{a.RunId}</td>
-                <td style={{ fontWeight: 'bold' }}>{a.ProductId}</td>
-                <td className="alert-details-text">{renderAlertDetails(a.Details)}</td>
+        {!alerts || alerts.length === 0 ? (
+          <div className="empty-state">
+            <p>⚠️ No alerts logged in history.</p>
+          </div>
+        ) : sortedAlerts.length === 0 ? (
+          <div className="empty-search-state">
+            <p>🔍 No alerts matching your search.</p>
+          </div>
+        ) : (
+          <table className="alerts-table">
+            <thead>
+              <tr>
+                <th onClick={() => handleSort('AlertTime')} style={{ width: '180px', cursor: 'pointer' }} className="sortable-th">
+                  Alert Time (NY) {renderSortIndicator('AlertTime')}
+                </th>
+                <th onClick={() => handleSort('SourceLine')} style={{ width: '90px', cursor: 'pointer' }} className="sortable-th">
+                  Line {renderSortIndicator('SourceLine')}
+                </th>
+                <th onClick={() => handleSort('RunId')} style={{ width: '90px', cursor: 'pointer' }} className="sortable-th">
+                  Run ID {renderSortIndicator('RunId')}
+                </th>
+                <th onClick={() => handleSort('ProductId')} style={{ width: '120px', cursor: 'pointer' }} className="sortable-th">
+                  Product ID {renderSortIndicator('ProductId')}
+                </th>
+                <th onClick={() => handleSort('Details')} style={{ cursor: 'pointer' }} className="sortable-th">
+                  Details / Parameter Violations {renderSortIndicator('Details')}
+                </th>
+                <th onClick={() => handleSort('SlackSentTime')} style={{ width: '150px', cursor: 'pointer' }} className="sortable-th">
+                  Slack Status {renderSortIndicator('SlackSentTime')}
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {sortedAlerts.map(a => (
+                <tr key={a.id} className="alert-row">
+                  <td style={{ color: 'var(--text-bright)', fontFamily: 'JetBrains Mono, monospace' }}>{fmt(a.AlertTime)}</td>
+                  <td>
+                    <span className="alert-line-badge">{a.SourceLine}</span>
+                  </td>
+                  <td style={{ fontFamily: 'JetBrains Mono, monospace' }}>{a.RunId}</td>
+                  <td style={{ fontWeight: 'bold' }}>{a.ProductId}</td>
+                  <td className="alert-details-text">{renderAlertDetails(a.Details)}</td>
+                  <td>
+                    {a.SlackSentTime ? (
+                      <span className="slack-status-badge slack-status-badge--sent" title={`Sent to Slack at ${fmt(a.SlackSentTime)}`}>
+                        <span className="slack-status-icon">💬</span>
+                        <span className="slack-status-text">Sent {fmt(a.SlackSentTime).split(' ')[1]}</span>
+                      </span>
+                    ) : (
+                      <span className="slack-status-badge slack-status-badge--none" title="No Slack notification sent">
+                        <span className="slack-status-icon">⚪</span>
+                        <span className="slack-status-text">Not Sent</span>
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

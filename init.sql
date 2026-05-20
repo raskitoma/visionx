@@ -168,6 +168,7 @@ CREATE TABLE IF NOT EXISTS `vision_alert_history` (
   `RunId` int(11) NOT NULL,
   `ProductId` varchar(40) NOT NULL,
   `Details` text DEFAULT NULL,
+  `SlackSentTime` datetime DEFAULT NULL,
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_line_alert` (`SourceLine`, `AlertTime`)

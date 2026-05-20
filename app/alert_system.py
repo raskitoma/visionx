@@ -36,9 +36,10 @@ class DbAlertHandler(AlertHandler):
 
 class SlackAlertHandler(AlertHandler):
     """Triggers alerts by posting a notification to a Slack webhook."""
-    def __init__(self, webhook_url: str, mention_target: str = None):
+    def __init__(self, webhook_url: str, mention_target: str = None, conn = None):
         self.webhook_url = webhook_url
         self.mention_target = mention_target
+        self.conn = conn
 
     def handle_alert(self, line: str, run_id: int, product_id: str, timestamp: datetime, errors: list):
         import urllib.request
@@ -100,6 +101,17 @@ class SlackAlertHandler(AlertHandler):
                 status = response.status
                 if status == 200 or status == 204:
                     logger.info(f"Successfully sent Slack notification for Line {line}, Run {run_id}")
+                    if self.conn:
+                        try:
+                            with self.conn.cursor() as cur:
+                                cur.execute("""
+                                    UPDATE vision_alert_history 
+                                    SET SlackSentTime = NOW() 
+                                    WHERE SourceLine = %s AND RunId = %s
+                                """, (line, run_id))
+                            self.conn.commit()
+                        except Exception as dbe:
+                            logger.error(f"Failed to update SlackSentTime in DB: {dbe}")
                 else:
                     logger.error(f"Slack webhook returned non-200 status: {status}")
         except Exception as e:
@@ -225,7 +237,7 @@ def run_alert_check():
                     cur.execute("SELECT webhook_url, mention_target, is_enabled FROM vision_slack_settings WHERE id = 1")
                     settings = cur.fetchone()
                     if settings and settings['is_enabled'] and settings['webhook_url']:
-                        slack_handler = SlackAlertHandler(settings['webhook_url'], settings['mention_target'])
+                        slack_handler = SlackAlertHandler(settings['webhook_url'], settings['mention_target'], conn=conn)
         except Exception as se:
             logger.warning(f"Could not load Slack settings: {se}")
 

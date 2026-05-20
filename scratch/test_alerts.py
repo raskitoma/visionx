@@ -78,6 +78,7 @@ def run_test():
                     print(f"  Run ID: {alert['RunId']}")
                     print(f"  Product ID: {alert['ProductId']}")
                     print(f"  Details: {alert['Details']}")
+                    print(f"  SlackSentTime: {alert.get('SlackSentTime')}")
             else:
                 print("Error: No alerts found in vision_alert_history for TEST_LINE")
                 

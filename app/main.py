@@ -73,10 +73,20 @@ def init_settings_table():
                         INSERT INTO vision_slack_settings (id, webhook_url, mention_target, is_enabled)
                         VALUES (1, '', '', 0)
                     """)
+                
+                # Check and add SlackSentTime to vision_alert_history if missing
+                try:
+                    cur.execute("SHOW COLUMNS FROM `vision_alert_history` LIKE 'SlackSentTime'")
+                    if not cur.fetchone():
+                        logging.info("Adding SlackSentTime column to vision_alert_history...")
+                        cur.execute("ALTER TABLE `vision_alert_history` ADD COLUMN `SlackSentTime` datetime DEFAULT NULL")
+                except Exception as ex:
+                    logging.error(f"Failed to verify/add SlackSentTime column: {ex}")
+                    
             conn.commit()
-            logging.info("vision_slack_settings table initialized successfully.")
+            logging.info("vision_slack_settings table and vision_alert_history columns initialized successfully.")
     except Exception as e:
-        logging.error(f"Failed to initialize vision_slack_settings table: {e}")
+        logging.error(f"Failed to initialize settings table or verify columns: {e}")
 
 @app.on_event("startup")
 def start_scheduler():
@@ -445,6 +455,7 @@ def get_alerts(limit: int = 50):
                 'RunId': row['RunId'],
                 'ProductId': row['ProductId'],
                 'Details': row['Details'],
+                'SlackSentTime': safe_localize(row.get('SlackSentTime')),
                 'created_at': safe_localize(row['created_at'])
             })
         return result
