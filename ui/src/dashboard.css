@@ -315,6 +315,39 @@ h1,h2 { margin: 0; font-weight: 600; color: var(--text-bright); }
   }
 }
 
+.alarm-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.alarm-dismiss-btn {
+  font-family: inherit;
+  font-size: 8px;
+  font-weight: bold;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+  line-height: 1;
+}
+
+.alarm-dismiss-btn:hover {
+  background: var(--red-bg);
+  color: var(--red);
+  border-color: rgba(239, 68, 68, 0.4);
+  transform: scale(1.1);
+}
+
+
 
 .line-card__header {
   display: flex;

@@ -406,7 +406,7 @@ function HourStatsCard({ lineName, stats }) {
   );
 }
 
-function LineCard({ lineName, status, run, hourStats, serverTime, vncPort, vncPassword, onVncOpen, recentAlert, onAlertClick }) {
+function LineCard({ lineName, status, run, hourStats, serverTime, vncPort, vncPassword, onVncOpen, recentAlert, onAlertClick, onDismissAlert }) {
   const minutesThreshold = status?.minutes_last_update || 10;
   const hasError = status?.status === 'error';
   const lastUpdateMs = run?.LastUpdate ? new Date(run.LastUpdate).getTime() : 0;
@@ -431,16 +431,28 @@ function LineCard({ lineName, status, run, hourStats, serverTime, vncPort, vncPa
             {isRunning && <span className="running-tag">RUNNING</span>}
             {isStopped && <span className="running-tag running-tag--stopped">STOPPED</span>}
             {recentAlert && (
-              <button 
-                className="alarmed-badge" 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAlertClick(lineName);
-                }}
-                title="Active Specs Violation Alert in the last 30 minutes. Click to view alert log."
-              >
-                ⚠️ ALARM ACTIVE
-              </button>
+              <div className="alarm-wrapper">
+                <button 
+                  className="alarmed-badge" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAlertClick(lineName, recentAlert.id);
+                  }}
+                  title="Active Specs Violation Alert in the last 30 minutes. Click to view alert log."
+                >
+                  ⚠️ ALARM ACTIVE
+                </button>
+                <button
+                  className="alarm-dismiss-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDismissAlert(recentAlert.id);
+                  }}
+                  title="Dismiss this alert"
+                >
+                  ✕
+                </button>
+              </div>
             )}
           </div>
           <div className="line-card__meta">
@@ -1024,15 +1036,40 @@ export default function App() {
   const [products, setProducts] = useState({});
   const [alerts, setAlerts] = useState([]);
   const [alertFilter, setAlertFilter] = useState('');
+  const [dismissedAlerts, setDismissedAlerts] = useState(() => {
+    try {
+      const saved = localStorage.getItem('vx_dismissed_alerts');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error('Failed to load dismissed alerts:', e);
+      return [];
+    }
+  });
 
-  const handleAlertClick = useCallback((lineName) => {
+  const handleAlertDismiss = useCallback((alertId) => {
+    setDismissedAlerts(prev => {
+      const next = prev.includes(alertId) ? prev : [...prev, alertId];
+      const pruned = next.slice(-100);
+      try {
+        localStorage.setItem('vx_dismissed_alerts', JSON.stringify(pruned));
+      } catch (e) {
+        console.error('Failed to save dismissed alerts:', e);
+      }
+      return pruned;
+    });
+  }, []);
+
+  const handleAlertClick = useCallback((lineName, alertId) => {
+    if (alertId) {
+      handleAlertDismiss(alertId);
+    }
     setAlertFilter(lineName);
     setActiveTab('alerts');
-  }, []);
+  }, [handleAlertDismiss]);
 
   const getRecentAlertForLine = useCallback((lineName, run, serverTime) => {
     if (!run || run.EndTime || !serverTime) return null;
-    const lineAlerts = alerts.filter(a => a.SourceLine === lineName && a.RunId === run.RunId);
+    const lineAlerts = alerts.filter(a => a.SourceLine === lineName && a.RunId === run.RunId && !dismissedAlerts.includes(a.id));
     if (lineAlerts.length === 0) return null;
     
     const mostRecent = lineAlerts.reduce((latest, current) => {
@@ -1046,7 +1083,7 @@ export default function App() {
       return mostRecent;
     }
     return null;
-  }, [alerts]);
+  }, [alerts, dismissedAlerts]);
 
   const fetchStatusOnly = useCallback(() => {
     fetch('/api/status').then(r => r.json())
@@ -1192,6 +1229,7 @@ export default function App() {
                           onVncOpen={setActiveVnc}
                           recentAlert={recentAlert}
                           onAlertClick={handleAlertClick}
+                          onDismissAlert={handleAlertDismiss}
                         />
                       );
                     })}
