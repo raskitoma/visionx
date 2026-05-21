@@ -212,7 +212,7 @@ def sync_source(src, target_cols, current_sync_time):
             with src_conn.cursor() as cur:
                 # Sync runs
                 cur.execute("SELECT * FROM runs WHERE RunId >= %s ORDER BY RunId ASC LIMIT %s", (last_run_id, RECORDS_LIMIT))
-                runs_data = cur.fetchall()
+                runs_data = list(cur.fetchall() or [])
                 
                 # Ensure we also get the ABSOLUTE LATEST run to keep the dashboard live
                 cur.execute("SELECT MAX(RunId) as abs_max FROM runs")

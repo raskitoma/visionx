@@ -406,7 +406,7 @@ function HourStatsCard({ lineName, stats }) {
   );
 }
 
-function LineCard({ lineName, status, run, hourStats, serverTime, vncPort, vncPassword, onVncOpen }) {
+function LineCard({ lineName, status, run, hourStats, serverTime, vncPort, vncPassword, onVncOpen, recentAlert, onAlertClick }) {
   const minutesThreshold = status?.minutes_last_update || 10;
   const hasError = status?.status === 'error';
   const lastUpdateMs = run?.LastUpdate ? new Date(run.LastUpdate).getTime() : 0;
@@ -423,13 +423,25 @@ function LineCard({ lineName, status, run, hourStats, serverTime, vncPort, vncPa
 
   return (
     <div className="line-container">
-      <section className={`line-card ${hasError ? 'line-card--error' : ''} ${isRunning ? 'line-card--running' : ''} ${isStopped ? 'line-card--stopped' : ''}`}>
+      <section className={`line-card ${hasError ? 'line-card--error' : ''} ${isRunning ? 'line-card--running' : ''} ${isStopped ? 'line-card--stopped' : ''} ${recentAlert ? 'line-card--alerted' : ''}`}>
         <header className="line-card__header">
           <div className="line-card__title">
             <StatusCircle status={status?.status} isRunning={isRunning} isStopped={isStopped} />
             <h2>{lineName}</h2>
             {isRunning && <span className="running-tag">RUNNING</span>}
             {isStopped && <span className="running-tag running-tag--stopped">STOPPED</span>}
+            {recentAlert && (
+              <button 
+                className="alarmed-badge" 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAlertClick(lineName);
+                }}
+                title="Active Specs Violation Alert in the last 30 minutes. Click to view alert log."
+              >
+                ⚠️ ALARM ACTIVE
+              </button>
+            )}
           </div>
           <div className="line-card__meta">
             {status?.ping !== undefined && (
@@ -642,8 +654,7 @@ function renderAlertDetails(details) {
   );
 }
 
-function AlertLogPanel({ alerts }) {
-  const [filterText, setFilterText] = useState('');
+function AlertLogPanel({ alerts, filterText, setFilterText }) {
   const [sortField, setSortField] = useState('AlertTime');
   const [sortAsc, setSortAsc] = useState(false);
 
@@ -715,7 +726,7 @@ function AlertLogPanel({ alerts }) {
     <div className="alerts-panel">
       <div className="panel-header">
         <div className="panel-header-title">
-          <h3>Alert History</h3>
+          <h3>Alert History (Average in the Last 30 Minutes)</h3>
           <span className="alerts-info">Refreshed every 60s.</span>
         </div>
         <div className="alerts-search-box">
@@ -1012,6 +1023,30 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('lines');
   const [products, setProducts] = useState({});
   const [alerts, setAlerts] = useState([]);
+  const [alertFilter, setAlertFilter] = useState('');
+
+  const handleAlertClick = useCallback((lineName) => {
+    setAlertFilter(lineName);
+    setActiveTab('alerts');
+  }, []);
+
+  const getRecentAlertForLine = useCallback((lineName, run, serverTime) => {
+    if (!run || run.EndTime || !serverTime) return null;
+    const lineAlerts = alerts.filter(a => a.SourceLine === lineName && a.RunId === run.RunId);
+    if (lineAlerts.length === 0) return null;
+    
+    const mostRecent = lineAlerts.reduce((latest, current) => {
+      return new Date(current.AlertTime) > new Date(latest.AlertTime) ? current : latest;
+    }, lineAlerts[0]);
+    
+    const alertTimeMs = new Date(mostRecent.AlertTime).getTime();
+    const serverTimeMs = new Date(serverTime).getTime();
+    
+    if (serverTimeMs - alertTimeMs <= 30 * 60 * 1000) {
+      return mostRecent;
+    }
+    return null;
+  }, [alerts]);
 
   const fetchStatusOnly = useCallback(() => {
     fetch('/api/status').then(r => r.json())
@@ -1141,19 +1176,25 @@ export default function App() {
                   </div>
                 ) : (
                   <div className="lines-list">
-                    {allLines.map(line => (
-                      <LineCard
-                        key={line}
-                        lineName={line}
-                        status={status.lines[line]}
-                        run={runs[line]}
-                        hourStats={hourStats[line]}
-                        serverTime={status.serverTime}
-                        vncPort={status.vnc_port}
-                        vncPassword={status.vnc_password}
-                        onVncOpen={setActiveVnc}
-                      />
-                    ))}
+                    {allLines.map(line => {
+                      const run = runs[line];
+                      const recentAlert = getRecentAlertForLine(line, run, status.serverTime);
+                      return (
+                        <LineCard
+                          key={line}
+                          lineName={line}
+                          status={status.lines[line]}
+                          run={run}
+                          hourStats={hourStats[line]}
+                          serverTime={status.serverTime}
+                          vncPort={status.vnc_port}
+                          vncPassword={status.vnc_password}
+                          onVncOpen={setActiveVnc}
+                          recentAlert={recentAlert}
+                          onAlertClick={handleAlertClick}
+                        />
+                      );
+                    })}
                   </div>
                 )}
               </>
@@ -1164,7 +1205,11 @@ export default function App() {
             )}
 
             {activeTab === 'alerts' && (
-              <AlertLogPanel alerts={alerts} />
+              <AlertLogPanel 
+                alerts={alerts} 
+                filterText={alertFilter} 
+                setFilterText={setAlertFilter} 
+              />
             )}
 
             {activeTab === 'settings' && (

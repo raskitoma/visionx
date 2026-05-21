@@ -42,6 +42,9 @@ class SlackAlertHandler(AlertHandler):
         self.conn = conn
 
     def handle_alert(self, line: str, run_id: int, product_id: str, timestamp: datetime, errors: list):
+        if line == 'TEST_LINE' or (line and line.startswith('TEST')):
+            logger.info(f"Skipping Slack notification for test line: {line}")
+            return
         import urllib.request
         import json
         import re
@@ -217,6 +220,7 @@ def run_alert_check():
     
     # Target DB stores timezone-naive local datetimes
     cutoff_naive = cutoff_ny.replace(tzinfo=None)
+    now_naive = now_ny.replace(tzinfo=None)
     
     conn = None
     try:
@@ -250,10 +254,10 @@ def run_alert_check():
             logger.info("Slack alerts are enabled and handler is attached.")
         
         with conn.cursor() as cur:
-            # Find runs with activity (LastUpdate) in the last 30 minutes
+            # Find active runs with activity (LastUpdate) in the last 30 minutes
             cur.execute("""
                 SELECT * FROM vision_runs 
-                WHERE LastUpdate >= %s
+                WHERE EndTime IS NULL AND LastUpdate >= %s
             """, (cutoff_naive,))
             active_runs = cur.fetchall()
             
@@ -267,6 +271,14 @@ def run_alert_check():
                 line = run['SourceLine']
                 run_id = run['RunId']
                 product_id = run['ProductId']
+                
+                # Only check runs that have been active for at least 30 minutes
+                # (exclude test lines from this check so tests can run immediately)
+                run_start = run['StartTime']
+                is_test = line == 'TEST_LINE' or (line and line.startswith('TEST'))
+                if not is_test and run_start and (now_naive - run_start) < timedelta(minutes=30):
+                    logger.info(f"Run {run_id} on Line {line} has been active for less than 30 minutes (started at {run_start}). Skipping alert check.")
+                    continue
                 
                 # Check if an alert was already triggered for this run to avoid duplicates
                 cur.execute("""
