@@ -23,6 +23,7 @@ def run_test():
             cur.execute("DELETE FROM vision_alert_history WHERE SourceLine = 'TEST_LINE'")
             cur.execute("DELETE FROM vision_product WHERE SourceLine = 'TEST_LINE'")
             cur.execute("DELETE FROM vision_runs WHERE SourceLine = 'TEST_LINE'")
+            cur.execute("DELETE FROM vision_samples WHERE SourceLine = 'TEST_LINE'")
             conn.commit()
             print("Cleaned up old test data.")
             
@@ -38,10 +39,10 @@ def run_test():
                 )
             """)
             
-            # 3. Insert mock run that violates limits:
+            # 3. Insert mock run and samples violating spec limits:
             # - DMajorAverage is 5.0 (below D1Min 10.0)
-            # - ToastAverage is 12.0 (below ToastMin 15.0)
-            # - RawAverage is 8.0 (above RawMax 5.0)
+            # - ToastAverage is 1200.0 (12.0%, below ToastMin 15.0%)
+            # - RawAverage is 800.0 (8.0%, above RawMax 5.0%)
             print("Inserting mock run violating spec limits...")
             ny_tz = pytz.timezone('America/New_York')
             now_ny = datetime.now(ny_tz)
@@ -53,9 +54,20 @@ def run_test():
                     DMajorAverage, ToastAverage, RawAverage, LastUpdate
                 ) VALUES (
                     'TEST_LINE', 9999, %s, 'TEST_PROD',
-                    5.0, 12.0, 8.0, %s
+                    5.0, 1200.0, 800.0, %s
                 )
             """, (now_naive, now_naive))
+            
+            print("Inserting mock sample violating spec limits...")
+            cur.execute("""
+                INSERT INTO vision_samples (
+                    SourceLine, RunId, LaneId, SampNo, SampTime,
+                    DMajorAverage, DAvgAverage, ToastAverage, RawAverage
+                ) VALUES (
+                    'TEST_LINE', 9999, '*', 1, %s,
+                    5.0, 5.0, 1200.0, 800.0
+                )
+            """, (now_naive,))
             conn.commit()
             print("Mock database setup complete.")
             
@@ -87,6 +99,7 @@ def run_test():
             cur.execute("DELETE FROM vision_alert_history WHERE SourceLine = 'TEST_LINE'")
             cur.execute("DELETE FROM vision_product WHERE SourceLine = 'TEST_LINE'")
             cur.execute("DELETE FROM vision_runs WHERE SourceLine = 'TEST_LINE'")
+            cur.execute("DELETE FROM vision_samples WHERE SourceLine = 'TEST_LINE'")
             conn.commit()
             print("Cleanup completed.")
             

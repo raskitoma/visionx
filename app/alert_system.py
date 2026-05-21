@@ -294,6 +294,7 @@ def run_alert_check():
                 # Fetch 30-minute average of samples for this run
                 cur.execute("""
                     SELECT 
+                        COUNT(*) as sample_count,
                         AVG(DMajorAverage) as DMajorAverage,
                         AVG(DMinorAverage) as DMinorAverage,
                         AVG(DAvgAverage) as DAvgAverage,
@@ -309,11 +310,10 @@ def run_alert_check():
                 """, (line, run_id, cutoff_naive))
                 avg_row = cur.fetchone()
                 
-                check_data = run
-                if avg_row and avg_row['DAvgAverage'] is not None:
-                    check_data = avg_row
-                    
-                errors = check_run_limits(check_data, product)
+                if avg_row and avg_row.get('sample_count', 0) > 0:
+                    errors = check_run_limits(avg_row, product)
+                else:
+                    errors = []
                 if errors:
                     # Alert trigger!
                     for handler in handlers:
