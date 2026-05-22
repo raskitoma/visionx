@@ -279,11 +279,22 @@ def sync_source(src, target_cols, current_sync_time):
                             p = Point("production_run") \
                                 .tag("line", line) \
                                 .tag("RunId", str(rd['RunId'])) \
-                                .tag("ProductId", str(rd.get('ProductId', 'Unknown'))) \
-                                .field("nDetected", int(rd.get('nDetected', 0) or 0)) \
-                                .field("nPassed", int(rd.get('nPassed', 0) or 0)) \
-                                .field("nMarginal", int(rd.get('nMarginal', 0) or 0)) \
-                                .field("nRejected", int(rd.get('nRejected', 0) or 0))
+                                .tag("ProductId", str(rd.get('ProductId', 'Unknown')))
+                            
+                            # Add all other columns from vision_runs definition as fields
+                            exclude_fields = {'SourceLine', 'RunId', 'ProductId', 'SyncUp', 'LastUpdate', 'created_at'}
+                            for k, v in rd_filtered.items():
+                                if k in exclude_fields or k.startswith('origin_'):
+                                    continue
+                                if v is None:
+                                    continue
+                                if isinstance(v, (int, float)):
+                                    p.field(k, v)
+                                elif isinstance(v, datetime):
+                                    p.field(k, v.isoformat())
+                                else:
+                                    p.field(k, str(v))
+                            
                             influx_points.append(p)
                 
                 # Sync lanes
