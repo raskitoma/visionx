@@ -157,6 +157,7 @@ def sync_source(src, target_cols, current_sync_time):
     # Retry loop for Target DB initialization
     last_run_id = 0
     last_samp_no = 0
+    run_product_map = {}
     target_ready = False
     
     for attempt in range(3):
@@ -174,6 +175,9 @@ def sync_source(src, target_cols, current_sync_time):
                 cur.execute("SELECT MAX(SampNo) as max_samp FROM vision_samples WHERE SourceLine = %s AND RunId = %s", (line, last_run_id))
                 row = cur.fetchone()
                 last_samp_no = row['max_samp'] if row and row['max_samp'] is not None else 0
+                
+                cur.execute("SELECT RunId, ProductId FROM vision_runs WHERE SourceLine = %s", (line,))
+                run_product_map = {r['RunId']: r['ProductId'] for r in cur.fetchall()}
             
             target_ready = True
             break
@@ -210,6 +214,29 @@ def sync_source(src, target_cols, current_sync_time):
             src_conn = get_source_connection(src)
             mysql_ok = "OK"
             with src_conn.cursor() as cur:
+                # Fetch product specifications for mapping target dimensions
+                cur.execute("SELECT ProductId, Elliptic, D1Target, D2Target FROM products")
+                products_list = cur.fetchall() or []
+                products_map = {p['ProductId']: p for p in products_list}
+
+                def get_product_targets(product_id):
+                    p = products_map.get(product_id)
+                    if not p:
+                        return None, None, None
+                    
+                    elliptic = p.get('Elliptic')
+                    d1_target = p.get('D1Target')
+                    d2_target = p.get('D2Target')
+                    
+                    if d1_target is None:
+                        return None, None, None
+                        
+                    if elliptic:
+                        d2 = d2_target if d2_target is not None else d1_target
+                        return d1_target, d2, (d1_target + d2) / 2.0
+                    else:
+                        return d1_target, d1_target, d1_target
+
                 # Sync runs
                 cur.execute("SELECT * FROM runs WHERE RunId >= %s ORDER BY RunId ASC LIMIT %s", (last_run_id, RECORDS_LIMIT))
                 runs_data = list(cur.fetchall() or [])
@@ -231,6 +258,15 @@ def sync_source(src, target_cols, current_sync_time):
                     logger.info(f"Targeting {len(runs_data)} runs to sync for {line}...")
                     with tgt_conn.cursor() as tcur:
                         for rd in runs_data:
+                            # Update run-to-product mapping for samples
+                            run_product_map[rd['RunId']] = rd.get('ProductId')
+
+                            # Resolve and add product targets
+                            target_dmajor, target_dminor, target_davg = get_product_targets(rd.get('ProductId'))
+                            rd['TargetDMajor'] = target_dmajor
+                            rd['TargetDMinor'] = target_dminor
+                            rd['TargetDAvg'] = target_davg
+
                             # Original source times
                             rd['origin_StartTime'] = rd.get('StartTime')
                             rd['origin_EndTime'] = rd.get('EndTime')
@@ -352,6 +388,13 @@ def sync_source(src, target_cols, current_sync_time):
                     logger.info(f"Targeting {len(samples_data)} samples to sync for {line}...")
                     with tgt_conn.cursor() as tcur:
                         for sd in samples_data:
+                            # Resolve and add product targets via RunId mapping
+                            product_id = run_product_map.get(sd.get('RunId'))
+                            target_dmajor, target_dminor, target_davg = get_product_targets(product_id)
+                            sd['TargetDMajor'] = target_dmajor
+                            sd['TargetDMinor'] = target_dminor
+                            sd['TargetDAvg'] = target_davg
+
                             sd['origin_SampTime'] = sd.get('SampTime')
                             sd['SampTime'] = get_corrected_datetime(current_sync_time, sd.get('origin_SampTime'), is_legacy)
                             
@@ -381,14 +424,27 @@ def sync_source(src, target_cols, current_sync_time):
                                 elif affected == 2: updated_count += 1
                             except Exception as ex:
                                 pass
-                                
                             p = Point("production_sample") \
                                 .tag("line", line) \
-                                .tag("lane", sd.get('LaneId', '*')) \
-                                .field("nDetected", int(sd.get('nDetected', 0) or 0)) \
-                                .field("nPassed", int(sd.get('nPassed', 0) or 0)) \
-                                .field("nMarginal", int(sd.get('nMarginal', 0) or 0)) \
-                                .field("nRejected", int(sd.get('nRejected', 0) or 0))
+                                .tag("lane", str(sd.get('LaneId', '*'))) \
+                                .tag("RunId", str(sd.get('RunId', 0)))
+                            
+                            if sd.get('SampTime'):
+                                p.time(sd['SampTime'])
+                            
+                            # Add all other columns from vision_samples definition as fields
+                            exclude_sample_fields = {'SourceLine', 'LaneId', 'RunId', 'SyncUp', 'LastUpdate', 'created_at', 'SampTime'}
+                            for k, v in sd_filtered.items():
+                                if k in exclude_sample_fields or k.startswith('origin_'):
+                                    continue
+                                if v is None:
+                                    continue
+                                if isinstance(v, (int, float)):
+                                    p.field(k, v)
+                                elif isinstance(v, datetime):
+                                    p.field(k, v.isoformat())
+                                else:
+                                    p.field(k, str(v))
                             
                             influx_points.append(p)
                 
