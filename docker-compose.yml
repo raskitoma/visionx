@@ -16,6 +16,7 @@ services:
     volumes:
       - ./app/main.py:/app/main.py
       - ./app/sync_engine.py:/app/sync_engine.py
+      - ./app/alert_system.py:/app/alert_system.py
       - ./app/config.py:/app/config.py
       - ./app/static/novnc:/app/static/novnc
       - ./app/static/vnc_viewer.html:/app/static/vnc_viewer.html

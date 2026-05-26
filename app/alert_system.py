@@ -125,89 +125,77 @@ def check_run_limits(run: dict, product: dict) -> list:
     """Compares the run averages against the product specification limits."""
     errors = []
     
-    # 1. D1 / DMajor limits
+    # Extract actual averages
     d_major = run.get('DMajorAverage')
-    if d_major is not None:
-        d1_min = product.get('D1Min')
-        d1_max = product.get('D1Max')
-        if d1_min is not None and d_major < d1_min:
-            errors.append(f"DMajorAverage ({d_major:.3f}) is below D1Min ({d1_min:.3f})")
-        if d1_max is not None and d_major > d1_max:
-            errors.append(f"DMajorAverage ({d_major:.3f}) is above D1Max ({d1_max:.3f})")
-
-    # 2. D2 / DMinor limits (only if elliptic is true)
-    elliptic = product.get('Elliptic')
-    if elliptic:
-        d_minor = run.get('DMinorAverage')
-        if d_minor is not None:
-            d2_min = product.get('D2Min')
-            d2_max = product.get('D2Max')
-            if d2_min is not None and d_minor < d2_min:
-                errors.append(f"DMinorAverage ({d_minor:.3f}) is below D2Min ({d2_min:.3f})")
-            if d2_max is not None and d_minor > d2_max:
-                errors.append(f"DMinorAverage ({d_minor:.3f}) is above D2Max ({d2_max:.3f})")
-
-    # 3. DAvg limits
+    d_minor = run.get('DMinorAverage')
     d_avg = run.get('DAvgAverage')
+    
+    # Extract product specification targets and limits
+    elliptic = product.get('Elliptic')
+    d1_target = product.get('D1Target')
+    d2_target = product.get('D2Target')
+    d1_min = product.get('D1Min')
+    d1_max = product.get('D1Max')
+    d2_min = product.get('D2Min')
+    d2_max = product.get('D2Max')
+    
+    # 1. DAvg check (alert if DAvg is off)
     if d_avg is not None:
         d_avg_min = product.get('DAvgMin')
         d_avg_max = product.get('DAvgMax')
+        
+        # Fallback if DAvgMin/DAvgMax are not specified in product spec
+        if d_avg_min is None:
+            if elliptic:
+                m1 = d1_min if d1_min is not None else d1_target
+                m2 = d2_min if d2_min is not None else (d2_target if d2_target is not None else m1)
+                if m1 is not None and m2 is not None:
+                    d_avg_min = (m1 + m2) / 2.0
+            else:
+                d_avg_min = d1_min
+                
+        if d_avg_max is None:
+            if elliptic:
+                m1 = d1_max if d1_max is not None else d1_target
+                m2 = d2_max if d2_max is not None else (d2_target if d2_target is not None else m1)
+                if m1 is not None and m2 is not None:
+                    d_avg_max = (m1 + m2) / 2.0
+            else:
+                d_avg_max = d1_max
+                
         if d_avg_min is not None and d_avg < d_avg_min:
             errors.append(f"DAvgAverage ({d_avg:.3f}) is below DAvgMin ({d_avg_min:.3f})")
         if d_avg_max is not None and d_avg > d_avg_max:
             errors.append(f"DAvgAverage ({d_avg:.3f}) is above DAvgMax ({d_avg_max:.3f})")
 
-    # 4. EFMax limit
-    ef_avg = run.get('EFAverage')
-    if ef_avg is not None:
-        ef_max = product.get('EFMax')
-        if ef_max is not None and ef_avg > ef_max:
-            errors.append(f"EFAverage ({ef_avg:.3f}) is above EFMax ({ef_max})")
-
-    # 5. EDMax limit
-    ed_avg = run.get('EDAverage')
-    if ed_avg is not None:
-        ed_max = product.get('EDMax')
-        if ed_max is not None and ed_avg > ed_max:
-            errors.append(f"EDAverage ({ed_avg:.3f}) is above EDMax ({ed_max})")
-
-    # 6. HAMax limit
-    ha_avg = run.get('HAAverage')
-    if ha_avg is not None:
-        ha_max = product.get('HAMax')
-        if ha_max is not None and ha_avg > ha_max:
-            errors.append(f"HAAverage ({ha_avg:.3f}) is above HAMax ({ha_max:.3f})")
-
-    # 7. ShapeMax limit
-    shape_avg = run.get('ShapeAverage')
-    if shape_avg is not None:
-        shape_max = product.get('ShapeMax')
-        if shape_max is not None and shape_avg > shape_max:
-            errors.append(f"ShapeAverage ({shape_avg:.3f}) is above ShapeMax ({shape_max:.3f})")
-
-    # 8. ToastMin limit
-    toast_avg = run.get('ToastAverage')
-    if toast_avg is not None:
-        toast_avg_pct = toast_avg / 100.0
-        toast_min = product.get('ToastMin')
-        if toast_min is not None and toast_avg_pct < toast_min:
-            errors.append(f"ToastAverage ({toast_avg_pct:.3f}%) is below ToastMin ({toast_min}%)")
-
-    # 9. RawMax limit
-    raw_avg = run.get('RawAverage')
-    if raw_avg is not None:
-        raw_avg_pct = raw_avg / 100.0
-        raw_max = product.get('RawMax')
-        if raw_max is not None and raw_avg_pct > raw_max:
-            errors.append(f"RawAverage ({raw_avg_pct:.3f}%) is above RawMax ({raw_max}%)")
-
-    # 10. TransMax limit
-    trans_avg = run.get('TransAverage')
-    if trans_avg is not None:
-        trans_avg_pct = trans_avg / 100.0
-        trans_max = product.get('TransMax')
-        if trans_max is not None and trans_avg_pct > trans_max:
-            errors.append(f"TransAverage ({trans_avg_pct:.3f}%) is above TransMax ({trans_max}%)")
+    # 2. Ratio check (alert when ratio is off)
+    if d_major is not None:
+        # If DMinor is missing for circular products, default it to DMajor
+        if d_minor is None and not elliptic:
+            d_minor = d_major
+            
+        if d_minor is not None and d_major > 0:
+            actual_ratio = d_minor / d_major
+            
+            # Determine expected limits for Major and Minor
+            t_major_min = d1_min if d1_min is not None else d1_target
+            t_major_max = d1_max if d1_max is not None else d1_target
+            
+            if elliptic:
+                t_minor_min = d2_min if d2_min is not None else (d2_target if d2_target is not None else t_major_min)
+                t_minor_max = d2_max if d2_max is not None else (d2_target if d2_target is not None else t_major_max)
+            else:
+                t_minor_min = t_major_min
+                t_minor_max = t_major_max
+                
+            if t_major_max and t_major_min and t_minor_min is not None and t_minor_max is not None:
+                ratio_min = t_minor_min / t_major_max
+                ratio_max = t_minor_max / t_major_min
+                
+                if actual_ratio < ratio_min:
+                    errors.append(f"ProductRatio ({actual_ratio:.3f}) is below expected limit ({ratio_min:.3f})")
+                if actual_ratio > ratio_max:
+                    errors.append(f"ProductRatio ({actual_ratio:.3f}) is above expected limit ({ratio_max:.3f})")
 
     return errors
 
