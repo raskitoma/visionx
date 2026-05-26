@@ -214,28 +214,50 @@ def sync_source(src, target_cols, current_sync_time):
             src_conn = get_source_connection(src)
             mysql_ok = "OK"
             with src_conn.cursor() as cur:
-                # Fetch product specifications for mapping target dimensions
-                cur.execute("SELECT ProductId, Elliptic, D1Target, D2Target FROM products")
+                # Fetch product specifications for mapping target dimensions and limits
+                cur.execute("SELECT ProductId, Elliptic, D1Target, D2Target, D1Min, D1Max, D2Min, D2Max FROM products")
                 products_list = cur.fetchall() or []
                 products_map = {p['ProductId']: p for p in products_list}
 
                 def get_product_targets(product_id):
                     p = products_map.get(product_id)
                     if not p:
-                        return None, None, None
+                        return None, None, None, None, None, None, None, 1.0
                     
                     elliptic = p.get('Elliptic')
                     d1_target = p.get('D1Target')
                     d2_target = p.get('D2Target')
+                    d1_min = p.get('D1Min')
+                    d1_max = p.get('D1Max')
+                    d2_min = p.get('D2Min')
+                    d2_max = p.get('D2Max')
                     
                     if d1_target is None:
-                        return None, None, None
+                        return None, None, None, None, None, None, None, 1.0
                         
                     if elliptic:
                         d2 = d2_target if d2_target is not None else d1_target
-                        return d1_target, d2, (d1_target + d2) / 2.0
+                        avg = (d1_target + d2) / 2.0
+                        
+                        d1_min_val = d1_min
+                        d1_max_val = d1_max
+                        d2_min_val = d2_min if d2_min is not None else d1_min
+                        d2_max_val = d2_max if d2_max is not None else d1_max
                     else:
-                        return d1_target, d1_target, d1_target
+                        d2 = d1_target
+                        avg = d1_target
+                        
+                        d1_min_val = d1_min
+                        d1_max_val = d1_max
+                        d2_min_val = d1_min
+                        d2_max_val = d1_max
+                        
+                    if d1_target > 0:
+                        ratio = d2 / d1_target
+                    else:
+                        ratio = 1.0
+                        
+                    return d1_target, d2, avg, d1_min_val, d1_max_val, d2_min_val, d2_max_val, ratio
 
                 # Sync runs
                 cur.execute("SELECT * FROM runs WHERE RunId >= %s ORDER BY RunId ASC LIMIT %s", (last_run_id, RECORDS_LIMIT))
@@ -262,10 +284,15 @@ def sync_source(src, target_cols, current_sync_time):
                             run_product_map[rd['RunId']] = rd.get('ProductId')
 
                             # Resolve and add product targets
-                            target_dmajor, target_dminor, target_davg = get_product_targets(rd.get('ProductId'))
+                            target_dmajor, target_dminor, target_davg, target_dmajor_min, target_dmajor_max, target_dminor_min, target_dminor_max, product_ratio = get_product_targets(rd.get('ProductId'))
                             rd['TargetDMajor'] = target_dmajor
                             rd['TargetDMinor'] = target_dminor
                             rd['TargetDAvg'] = target_davg
+                            rd['TargetDMajorMin'] = target_dmajor_min
+                            rd['TargetDMajorMax'] = target_dmajor_max
+                            rd['TargetDMinorMin'] = target_dminor_min
+                            rd['TargetDMinorMax'] = target_dminor_max
+                            rd['TargetProductRatio'] = product_ratio
 
                             # Original source times
                             rd['origin_StartTime'] = rd.get('StartTime')
@@ -390,10 +417,15 @@ def sync_source(src, target_cols, current_sync_time):
                         for sd in samples_data:
                             # Resolve and add product targets via RunId mapping
                             product_id = run_product_map.get(sd.get('RunId'))
-                            target_dmajor, target_dminor, target_davg = get_product_targets(product_id)
+                            target_dmajor, target_dminor, target_davg, target_dmajor_min, target_dmajor_max, target_dminor_min, target_dminor_max, product_ratio = get_product_targets(product_id)
                             sd['TargetDMajor'] = target_dmajor
                             sd['TargetDMinor'] = target_dminor
                             sd['TargetDAvg'] = target_davg
+                            sd['TargetDMajorMin'] = target_dmajor_min
+                            sd['TargetDMajorMax'] = target_dmajor_max
+                            sd['TargetDMinorMin'] = target_dminor_min
+                            sd['TargetDMinorMax'] = target_dminor_max
+                            sd['TargetProductRatio'] = product_ratio
 
                             sd['origin_SampTime'] = sd.get('SampTime')
                             sd['SampTime'] = get_corrected_datetime(current_sync_time, sd.get('origin_SampTime'), is_legacy)
