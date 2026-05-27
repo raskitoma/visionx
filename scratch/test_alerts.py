@@ -51,10 +51,12 @@ def run_test():
             cur.execute("""
                 INSERT INTO vision_runs (
                     SourceLine, RunId, StartTime, ProductId, 
-                    DMajorAverage, ToastAverage, RawAverage, LastUpdate
+                    DMajorAverage, ToastAverage, RawAverage, LastUpdate,
+                    TargetDMajorMax, TargetDMinorMin
                 ) VALUES (
                     'TEST_LINE', 9999, %s, 'TEST_PROD',
-                    5.0, 1200.0, 800.0, %s
+                    5.0, 1200.0, 800.0, %s,
+                    20.0, 10.0
                 )
             """, (now_naive, now_naive))
             
@@ -62,10 +64,12 @@ def run_test():
             cur.execute("""
                 INSERT INTO vision_samples (
                     SourceLine, RunId, LaneId, SampNo, SampTime,
-                    DMajorAverage, DAvgAverage, ToastAverage, RawAverage
+                    DMajorAverage, DAvgAverage, DAvgLast, ToastAverage, RawAverage,
+                    TargetDMajorMax, TargetDMinorMin
                 ) VALUES (
                     'TEST_LINE', 9999, '*', 1, %s,
-                    5.0, 5.0, 1200.0, 800.0
+                    5.0, 5.0, 5.0, 1200.0, 800.0,
+                    20.0, 10.0
                 )
             """, (now_naive,))
             conn.commit()

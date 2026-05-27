@@ -261,7 +261,9 @@ def get_runs():
                         r.nMarginal,
                         r.nRejected,
                         r.WidthAverage,
-                        r.LastUpdate
+                        r.LastUpdate,
+                        r.TargetDMajorMax,
+                        r.TargetDMinorMin
                     FROM vision_runs r
                     INNER JOIN (
                         SELECT SourceLine, MAX(RunId) AS MaxRunId
@@ -283,6 +285,9 @@ def get_runs():
                         AVG(DMajorAverage) as DMajor,
                         AVG(DMinorAverage) as DMinor,
                         AVG(DAvgAverage) as DAvg,
+                        AVG(DAvgLast) as DAvgLast,
+                        AVG(TargetDMajorMax) as TargetDMajorMax,
+                        AVG(TargetDMinorMin) as TargetDMinorMin,
                         AVG(EFAverage) as EF,
                         AVG(EDAverage) as ED,
                         AVG(HAAverage) as HA,
@@ -301,6 +306,9 @@ def get_runs():
                         'DMajor': arow['DMajor'],
                         'DMinor': arow['DMinor'],
                         'DAvg': arow['DAvg'],
+                        'DAvgLast': arow['DAvgLast'],
+                        'TargetDMajorMax': arow['TargetDMajorMax'],
+                        'TargetDMinorMin': arow['TargetDMinorMin'],
                         'EF': arow['EF'],
                         'ED': arow['ED'],
                         'HA': arow['HA'],
@@ -344,6 +352,8 @@ def get_runs():
                 'WidthAverage': row['WidthAverage'],
                 'LastUpdate':   safe_localize(row['LastUpdate']),
                 'isRunning':    row.get('isRunning', False),
+                'TargetDMajorMax': row['TargetDMajorMax'],
+                'TargetDMinorMin': row['TargetDMinorMin'],
                 'averages_30m': avg_30m.get(line, None),
             }
         return result
@@ -385,6 +395,17 @@ def get_products():
                     return ny_tz.localize(dt).isoformat()
                 return dt.isoformat()
 
+            elliptic = row['Elliptic']
+            d1_min = row['D1Min']
+            d1_max = row['D1Max']
+            d2_min = row['D2Min']
+            
+            target_dmajor_max = d1_max
+            if elliptic:
+                target_dminor_min = d2_min if d2_min is not None else d1_min
+            else:
+                target_dminor_min = d1_min
+
             prod_entry = {
                 'ProductId': row['ProductId'],
                 'ProductDesc': row['ProductDesc'],
@@ -397,6 +418,8 @@ def get_products():
                 'D2Max': row['D2Max'],
                 'DAvgMin': row['DAvgMin'],
                 'DAvgMax': row['DAvgMax'],
+                'TargetDMajorMax': target_dmajor_max,
+                'TargetDMinorMin': target_dminor_min,
                 'EFMax': row['EFMax'],
                 'EFFlatDef': row['EFFlatDef'],
                 'EDMax': row['EDMax'],

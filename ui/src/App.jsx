@@ -516,6 +516,10 @@ function Averages30mStrip({ averages }) {
           <span className="avg-label">DIA (MAJ/MIN/AVG)</span>
           <span className="avg-val">{val(averages.DMajor)} / {val(averages.DMinor)} / {val(averages.DAvg)}</span>
         </div>
+        <div className="avg-30m-item" title="Diameter Average Last vs Target Limits (TargetDMinorMin / TargetDMajorMax)">
+          <span className="avg-label">DAvgLast (Min/Max Target)</span>
+          <span className="avg-val">{val(averages.DAvgLast)} ({val(averages.TargetDMinorMin)} / {val(averages.TargetDMajorMax)})</span>
+        </div>
         <div className="avg-30m-item" title="Edge Flatness Average">
           <span className="avg-label">FLATNESS (EF)</span>
           <span className="avg-val">{val(averages.EF)}</span>
@@ -600,6 +604,8 @@ function ProductSpecsPanel({ products }) {
                         <th>D1 (Min/Target/Max)</th>
                         <th>D2 (Min/Target/Max)</th>
                         <th>DAvg (Min/Max)</th>
+                        <th>Target DMinor Min</th>
+                        <th>Target DMajor Max</th>
                         <th>EF Max</th>
                         <th>ED Max</th>
                         <th>HA Max</th>
@@ -618,6 +624,8 @@ function ProductSpecsPanel({ products }) {
                           <td>{val(p.D1Min)} / {val(p.D1Target)} / {val(p.D1Max)}</td>
                           <td>{p.Elliptic ? `${val(p.D2Min)} / ${val(p.D2Target)} / ${val(p.D2Max)}` : '—'}</td>
                           <td>{val(p.DAvgMin)} / {val(p.DAvgMax)}</td>
+                          <td>{val(p.TargetDMinorMin)}</td>
+                          <td>{val(p.TargetDMajorMax)}</td>
                           <td>{p.EFMax ?? '—'}</td>
                           <td>{p.EDMax ?? '—'}</td>
                           <td>{val(p.HAMax, 3)}</td>

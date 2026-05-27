@@ -139,34 +139,26 @@ def check_run_limits(run: dict, product: dict) -> list:
     d2_min = product.get('D2Min')
     d2_max = product.get('D2Max')
     
-    # 1. DAvg check (alert if DAvg is off)
-    if d_avg is not None:
-        d_avg_min = product.get('DAvgMin')
-        d_avg_max = product.get('DAvgMax')
+    # 1. DAvg check (alert if DAvgLast is off)
+    d_avg_last = run.get('DAvgLast')
+    if d_avg_last is not None:
+        target_dmajor_max = run.get('TargetDMajorMax')
+        target_dminor_min = run.get('TargetDMinorMin')
         
-        # Fallback if DAvgMin/DAvgMax are not specified in product spec
-        if d_avg_min is None:
+        # Fallback to computing them from product spec if not present in run
+        if target_dmajor_max is None:
+            target_dmajor_max = d1_max
+            
+        if target_dminor_min is None:
             if elliptic:
-                m1 = d1_min if d1_min is not None else d1_target
-                m2 = d2_min if d2_min is not None else (d2_target if d2_target is not None else m1)
-                if m1 is not None and m2 is not None:
-                    d_avg_min = (m1 + m2) / 2.0
+                target_dminor_min = d2_min if d2_min is not None else d1_min
             else:
-                d_avg_min = d1_min
+                target_dminor_min = d1_min
                 
-        if d_avg_max is None:
-            if elliptic:
-                m1 = d1_max if d1_max is not None else d1_target
-                m2 = d2_max if d2_max is not None else (d2_target if d2_target is not None else m1)
-                if m1 is not None and m2 is not None:
-                    d_avg_max = (m1 + m2) / 2.0
-            else:
-                d_avg_max = d1_max
-                
-        if d_avg_min is not None and d_avg < d_avg_min:
-            errors.append(f"DAvgAverage ({d_avg:.3f}) is below DAvgMin ({d_avg_min:.3f})")
-        if d_avg_max is not None and d_avg > d_avg_max:
-            errors.append(f"DAvgAverage ({d_avg:.3f}) is above DAvgMax ({d_avg_max:.3f})")
+        if target_dminor_min is not None and d_avg_last < target_dminor_min:
+            errors.append(f"DAvgLast ({d_avg_last:.3f}) is below TargetDMinorMin ({target_dminor_min:.3f})")
+        if target_dmajor_max is not None and d_avg_last > target_dmajor_max:
+            errors.append(f"DAvgLast ({d_avg_last:.3f}) is above TargetDMajorMax ({target_dmajor_max:.3f})")
 
     # 2. Ratio check (alert when ratio is off)
     if d_major is not None:
@@ -298,6 +290,9 @@ def run_alert_check():
                         AVG(DMajorAverage) as DMajorAverage,
                         AVG(DMinorAverage) as DMinorAverage,
                         AVG(DAvgAverage) as DAvgAverage,
+                        AVG(DAvgLast) as DAvgLast,
+                        AVG(TargetDMajorMax) as TargetDMajorMax,
+                        AVG(TargetDMinorMin) as TargetDMinorMin,
                         AVG(EFAverage) as EFAverage,
                         AVG(EDAverage) as EDAverage,
                         AVG(HAAverage) as HAAverage,
