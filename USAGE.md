@@ -84,6 +84,11 @@ Since legacy source databases are often running on outdated operating systems, t
 *   **Newer Systems**:
     *   Trusts the source's calendar date, but checks full datetime drift. If drift is **greater than 10 minutes**, it overrides the hour/minute/second with the **Host Time** while keeping the source's date. Otherwise, it trusts the source's datetime completely.
 
+> [!NOTE]
+> The correction is **not** destructive. The raw pre-correction value read from the legacy machine is preserved alongside the corrected one in dedicated `origin_*` columns: `origin_StartTime`/`origin_EndTime`/`origin_FirstTime`/`origin_LastTime` on `vision_runs`, `origin_FirstTime`/`origin_LastTime` on `vision_lanes`, and `origin_SampTime` on `vision_samples`. Use these to audit how far a given line's clock had drifted.
+>
+> Note that `vision_history.Date_Source` is *not* a source timestamp despite its name — it is read back from the already-corrected `vision_runs.LastTime`.
+
 ### B. Speclimit Checking and Alerting Engine
 Every 30 minutes, `run_alert_check()` evaluates active runs:
 1.  Filters for active runs (`EndTime IS NULL`) that have received updates in the last 30 minutes and have been running for at least 30 minutes.

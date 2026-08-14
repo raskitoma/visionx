@@ -86,7 +86,8 @@ def write_to_influx(data_points):
 def get_corrected_datetime(host_dt, source_dt, is_legacy):
     """
     Unified time correction logic:
-    - Legacy (!): Use Host Date. Compare time part only. If offset > 10m, use Host Time.
+    - Legacy (!): Use Host Date. Compare time part only (circularly, so times either
+      side of midnight compare correctly). If offset > 10m, use Host Time.
     - Newer: Use Source Date. Compare full datetime. If offset > 10m, use Host Time.
     """
     if not source_dt:
@@ -97,19 +98,28 @@ def get_corrected_datetime(host_dt, source_dt, is_legacy):
             # Compare only the time part (ignoring date)
             h_time_only = host_dt.replace(year=2000, month=1, day=1, tzinfo=None)
             s_time_only = source_dt.replace(year=2000, month=1, day=1, tzinfo=None)
-            diff_seconds = abs((h_time_only - s_time_only).total_seconds())
-            
+            raw_diff = abs((h_time_only - s_time_only).total_seconds())
+            # Time of day is circular: 23:58 and 00:02 are 4 minutes apart, not 23h56m
+            diff_seconds = min(raw_diff, 86400 - raw_diff)
+
             if diff_seconds > 600: # 10 minutes
                 # Time part is too far off. Use full Host DT.
                 return host_dt
             else:
                 # Time part is close. Use Host Date + Source Time.
-                return host_dt.replace(
+                corrected = host_dt.replace(
                     hour=source_dt.hour,
                     minute=source_dt.minute,
                     second=source_dt.second,
                     microsecond=source_dt.microsecond
                 )
+                # When the two clocks straddle midnight, pasting the source time onto
+                # the host date lands a full day out. Shift to the adjacent date.
+                if (corrected - host_dt).total_seconds() > 43200:
+                    corrected -= timedelta(days=1)
+                elif (host_dt - corrected).total_seconds() > 43200:
+                    corrected += timedelta(days=1)
+                return corrected
         else:
             # Newer system. Use Source Date.
             # Compare full datetime.
@@ -326,7 +336,9 @@ def sync_source(src, target_cols, current_sync_time):
                             update_parts = [f"`LastUpdate` = IF({change_cond}, VALUES(`LastUpdate`), `LastUpdate`)"]
                             
                             for c in cols:
-                                if c not in ['StartTime', 'created_at', 'LastUpdate']:
+                                # origin_StartTime is frozen alongside StartTime so the pair
+                                # always describes the same moment of capture
+                                if c not in ['StartTime', 'origin_StartTime', 'created_at', 'LastUpdate']:
                                     update_parts.append(f"`{c}`=VALUES(`{c}`)")
                             update_clause = ", ".join(update_parts)
                             
